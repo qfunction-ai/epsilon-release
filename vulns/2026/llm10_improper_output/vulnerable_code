@@ -1,0 +1,65 @@
+// SOURCE: frontend/src/components/DefenseList.tsx (original vulnerable version)
+//
+// NOTE: This pattern was present in early Epsilon development and has
+// been removed. Shown here for teaching purposes. The current
+// DefenseList.tsx uses React node rendering instead.
+//
+// The vulnerability is treating LLM output as trusted HTML content.
+// React's JSX escaping is bypassed by dangerouslySetInnerHTML, allowing
+// any HTML in the LLM response to render as DOM elements.
+
+import type { DefenseRef } from '../types'
+
+interface DefenseListProps {
+  defenses: DefenseRef[]
+}
+
+export function DefenseList({ defenses }: DefenseListProps) {
+  return (
+    <div className="defense-list">
+      {defenses.map((defense, i) => (
+        <div key={i} className="defense-item">
+          <div className="defense-item-title">{defense.control}</div>
+
+          {/* VULNERABLE: dangerouslySetInnerHTML bypasses React's XSS protection.
+              If the LLM output contains <script> tags, <img onerror> handlers,
+              or other HTML injection payloads, they will execute in the browser.
+
+              The formatDescription() function does escape HTML before wrapping
+              backtick segments in <code> tags — but relying on your own escaping
+              is fragile. React's built-in encoding is the correct approach. */}
+          <div
+            className="defense-item-body"
+            dangerouslySetInnerHTML={{ __html: formatDescription(defense.description) }}
+          />
+
+          {/* VULNERABLE: No CSP (Content Security Policy) headers.
+              Inline scripts can execute because the browser has no
+              restriction on script sources. A CSP header like:
+              Content-Security-Policy: default-src 'self'
+              would prevent inline script execution even if XSS occurs. */}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// VULNERABLE: Manual HTML escaping is fragile and error-prone.
+// React handles this automatically when you use {expression} in JSX.
+// Using dangerouslySetInnerHTML opts out of React's protection.
+function formatDescription(desc: string): string {
+  // Manual escape — if this function has a bug, XSS is possible
+  const escaped = desc
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  // Replace `code` with <code>code</code>
+  return escaped.replace(/`([^`]+)`/g, '<code>$1</code>')
+}
+
+// VULNERABILITY SUMMARY:
+//   - dangerouslySetInnerHTML bypasses React's XSS protection
+//   - Manual HTML escaping is fragile — one bug = XSS
+//   - No CSP headers — inline scripts can execute
+//   - LLM output treated as trusted content (it's not — it's user-generated)
+//   - The fix is React node rendering — see fixed_code

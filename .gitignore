@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+*.so
+.venv/
+venv/
+env/
+.env
+.envrc
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+
+# Test / coverage
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+cover/
+
+# Alembic
+backend/alembic/versions/*.pyc
+
+# LettaLocal data (local dev)
+letta_data/
+
+# Logs
+*.log
+
+# Root-level workflow markdown (plans/reviews/findings) stays on disk
+# for the inter-agent workflow but never enters version control.
+# README and CLA are product files and always tracked.
+/*.md
+!/README.md
+!/CLA.md

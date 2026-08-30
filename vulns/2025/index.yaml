@@ -1,0 +1,35 @@
+year: 2025
+latest: false
+edition: "OWASP Top 10 for LLM Applications 2025"
+entries:
+  - id: llm01_prompt_injection
+    owasp_id: LLM01
+    title: Prompt Injection
+  - id: llm02_sensitive_info
+    owasp_id: LLM02
+    title: Sensitive Information Disclosure
+  - id: llm03_supply_chain
+    owasp_id: LLM03
+    title: Supply Chain
+  - id: llm04_data_poisoning
+    owasp_id: LLM04
+    title: Data and Model Poisoning
+  - id: llm05_improper_output
+    owasp_id: LLM05
+    title: Improper Output Handling
+  - id: llm06_excessive_agency
+    owasp_id: LLM06
+    title: Excessive Agency
+  - id: llm07_system_prompt_leakage
+    owasp_id: LLM07
+    title: System Prompt Leakage
+  - id: llm08_vector_embedding
+    owasp_id: LLM08
+    title: Vector and Embedding Vulnerabilities
+  - id: llm09_misinformation
+    owasp_id: LLM09
+    title: Misinformation
+  - id: llm10_unbounded_consumption
+    owasp_id: LLM10
+    title: Unbounded Consumption
+# Note: 2025 entries are placeholders — vulnerability configs not yet populated.

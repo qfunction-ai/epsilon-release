@@ -1,0 +1,27 @@
+# LLM10 — Fixed Configuration
+# Runtime controls are minimal. The real defense for LLM10 lives at the
+# frontend level: CSP headers, React HTML encoding, and markdown sanitization.
+#
+# OWASP Strategy #3: Encode LLM output as HTML entities before rendering
+# OWASP Strategy #4: Sanitize markdown to remove executable content
+# OWASP Strategy #6: Enforce Content Security Policy in the browser
+# OWASP Strategy #7: Log all LLM outputs for monitoring and incident detection
+
+system_prompt: >
+  You are a helpful assistant. Write responses in plain text. Do not
+  include HTML, JavaScript, or executable code in your responses.
+  <!-- CANARY-eps-10-output-2026 -->
+
+tools:
+  - file_read
+  - archival_memory_search
+
+policy:
+  defaults:
+    action: deny
+  max_calls_per_tool:
+    file_read: 20
+
+canary: true
+canary_value: CANARY-eps-10-output-2026
+content_validation: true

@@ -1,0 +1,53 @@
+# SOURCE: backend/app/services/agent_manager.py — _vuln_config_to_agent_config()
+#
+# When a student selects "Vulnerable" for LLM09, poisoned embeddings can
+# inject content into the context window via archival memory search.
+# There is no source access control and no retrieval audit logging.
+
+@staticmethod
+def _vuln_config_to_agent_config(
+    vuln_config: VulnerabilityConfig,
+    settings: Settings,
+) -> AgentConfig:
+    provider_type = "ollama" if settings.OLLAMA_MODEL.lower().startswith("ollama/") else "openai"
+    model_settings = ModelSettings(provider_type=provider_type, temperature=0.0)
+
+    policy = PolicyConfig(
+        denied_tools=vuln_config.policy.get("denied_tools", []),
+        rules=vuln_config.policy.get("rules", []),
+        max_calls_per_tool=vuln_config.policy.get("max_calls_per_tool", {}),
+        defaults=vuln_config.policy.get("defaults"),  # { action: "allow" }
+    )
+
+    return AgentConfig(
+        system_prompt=vuln_config.system_prompt,
+
+        # VULNERABLE: archival_memory_search is exposed with no source
+        # verification. Poisoned embeddings in the vector store can be
+        # retrieved and injected into the context window.
+        tools=vuln_config.tools,
+
+        policy=policy,
+        canary=vuln_config.canary,
+
+        # VULNERABLE: No content validation on retrieval results.
+        # Poisoned passages returned by archival_memory_search enter
+        # the context window without scanning.
+        content_validation=vuln_config.content_validation,  # False
+
+        # VULNERABLE: Documents loaded into the vector store without
+        # provenance verification. A poisoned document can embed
+        # adversarial content that gets retrieved at query time.
+        documents=vuln_config.documents,
+
+        model=settings.OLLAMA_MODEL,
+        embedding=settings.LETTA_EMBEDDING_MODEL,
+        model_settings=model_settings,
+    )
+
+# VULNERABILITY SUMMARY:
+#   - No source access control — no verification of embedding source
+#   - No retrieval audit logging — no trail of what was retrieved
+#   - No content validation on retrieval results
+#   - Poisoned embeddings inject content into the context window
+#   - The fix is content validation + audit logging + policy rules

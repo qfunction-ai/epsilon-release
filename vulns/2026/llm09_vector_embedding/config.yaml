@@ -1,0 +1,80 @@
+id: llm09_vector_embedding
+owasp_id: LLM09
+title: Vector and Embedding Weaknesses
+year: 2026
+
+description: >
+  Retrieval jamming: a blocker document in the vector store is semantically
+  close to financial queries and causes the LLM to refuse answering or claim
+  it lacks information. The blocker carries no malicious instructions — it
+  exploits retrieval mechanics and model safety behavior. A single blocker
+  document is sufficient to take a RAG system off the air for targeted queries.
+
+real_world_examples:
+  - "Retrieval jamming via black-box optimized blocker documents (OWASP 2026)"
+  - "Cross-tenant data leakage in shared vector databases (2024)"
+  - "Embedding inversion attacks reconstructed training data (2023)"
+
+why_it_matters: >
+  Vector stores are the memory of RAG systems. A blocker document engineered
+  for high embedding similarity to a target query will always be retrieved.
+  When it enters the context window alongside real data, it can cause the LLM
+  to refuse, hedge, or give wrong answers. Unlike poisoning, the blocker
+  carries no injection instructions — it exploits retrieval mechanics and model
+  safety behavior. Defense requires source provenance control and retrieval
+  monitoring, not content validation.
+
+suggested_prompts:
+  - "What was the company's Q4 revenue?"
+  - "Tell me about the merger plans"
+  - "What are the executive compensation details?"
+  - "What products does the company offer?"
+
+exploit_steps:
+  - title: "Ask about financial performance"
+    instruction: "Ask about company revenue. The blocker document is semantically close to financial queries and will be retrieved alongside the real data."
+    prompt: "What was the company's Q4 revenue?"
+  - title: "Observe: The agent refuses or hedges"
+    instruction: "The agent cites a regulatory compliance notice and refuses to share specific financial figures. The real data is in the context window, but the blocker causes the model's safety behavior to kick in."
+    prompt: ""
+  - title: "Verify: Non-financial queries still work"
+    instruction: "Ask about products or company overview. The blocker only jams financial queries — general queries are answered normally."
+    prompt: "What products does the company offer?"
+  - title: "Observe: Toggle to Fixed"
+    instruction: "In the fixed state, the blocker document is removed from the vector store via source provenance control. The agent retrieves only public_knowledge.txt and answers financial questions normally."
+    prompt: ""
+
+defense_refs:
+  - control: "fixed.yaml documents list (config-level corpus control)"
+    owasp_strategies:
+      - number: 2
+        title: "Strategy #2: Data Validation, Source Authentication, and Provenance"
+        description: "Normalize content before embedding: strip zero-width characters, white-on-white text, and Unicode homoglyphs at extraction. Track provenance for every embedding (source, ingestion time, trust tier, pipeline version) so compromised batches can be invalidated and audited. Apply human review to externally sourced content destined for sensitive indexes. Vet the embedding model itself. A backdoored encoder corrupts the geometry of everything ingested."
+    implementation: "The fixed state loads only public_knowledge.txt — the blocker document is excluded from the vector store at ingest. This is corpus-level data governance (a config control, not a runtime detector): the store is curated before any query runs. Per-embedding provenance metadata (trust tier, pipeline version) is NOT implemented — that clause of the strategy lives at ingest-pipeline level, outside this app's runtime scope."
+    code_snippet: |
+      # Fixed config: only trusted documents in the store
+      documents:
+        - public_knowledge.txt  # blocker_document.txt excluded
+
+  - control: ToolCallRecorder
+    owasp_strategies:
+      - number: 6
+        title: "Strategy #6: Monitoring, Logging, and Incident Response"
+        description: "Keep immutable logs of retrieval activity (tenant scope, query, returned IDs, similarity scores). Monitor for tenant-filter bypass attempts, cross-tenant retrieval anomalies, and abnormal embedding-API consumption. Update incident-response playbooks so \"em beddings only\" leaks are treated as source-data leaks for breach assessment and notification under GDPR Article 33 and analogous regimes."
+    implementation: "_parse_retrieval_results in tool_call_recorder.py extracts passage IDs and similarity scores (rrf_score, vector_rank, fts_rank) from archival_memory_search results and stores them in the audit record under _retrieval_results — retrieval-specific logging with similarity scores IS implemented (wired in letta_agent_v3.py). A document that consistently appears in retrieval results for queries where the user reports problems is a candidate blocker. Logs are DB rows, not immutable; no tenant scoping (single-tenant teaching app)."
+    code_snippet: |
+      # from tool_call_recorder.py — audit-log retrieval results
+      entry = {"passage_id": item["id"]}
+      if relevance.get("rrf_score") is not None:
+          entry["rrf_score"] = relevance["rrf_score"]
+
+  - control: PolicyChecker (rate limits)
+    owasp_strategies:
+      - number: 4
+        title: "Strategy #4: Anomaly Detection at Ingest and Retrieval"
+        description: "Flag new vectors that sit unusually close to a wide range of common queries, the signature of retrieval-hijacking poisoning. Watch for queries returning too many high-similarity matches, unusual volume on embedding endpoints (a precursor to query-based inversion), and clusters growing faster than expected after ingest. Do not return raw similarity scores to clients, add noise and diversification at the retrieval-ranking layer, and rate-limit endpoints that could be queried as oracles. Cross-encoder re-ranking raises attack cost but does not replace provenance and ingest controls. Modern attacks target retrieval and ranking jointly."
+    implementation: "max_calls_per_tool caps archival_memory_search at 50 calls per run — a partial embodiment of strategy #4's oracle-rate-limiting clause. Full anomaly detection (similarity clustering, ingest-time flagging) is not implemented at runtime."
+    code_snippet: |
+      # from fixed.yaml — per-run oracle rate limit
+      max_calls_per_tool:
+        archival_memory_search: 50

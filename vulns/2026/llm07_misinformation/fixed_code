@@ -1,0 +1,139 @@
+# SOURCE: letta/security/audit.py (trimmed)
+#
+# This is the ACTUAL LettaLocal framework code for security audit logging.
+# The AuditLogger writes security events to an append-only table — the
+# timeline for incident reconstruction.
+#
+# For misinformation (LLM07), the audit log is NOT a runtime defense.
+# Hallucination detection is an open research problem. No framework
+# control can reliably prevent the LLM from fabricating information.
+#
+# What the audit log DOES provide:
+#   1. A post-hoc trail of which retrieval step produced a claim
+#   2. Tool call outcomes that can be reviewed for accuracy
+#   3. A timeline of what the agent did and when
+#
+# The real defense for misinformation is:
+#   - Grounding (require the agent to retrieve sources before making claims)
+#   - Human oversight (review outputs in high-stakes contexts)
+#   - CI/CD evaluation (adversarial testing for hallucination regression)
+
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Optional
+from uuid import uuid4
+
+
+class SecurityEventType(str, Enum):
+    """Security event types written to the audit log."""
+    TOOL_EXECUTED = "tool_executed"
+    TOOL_DENIED = "tool_denied"
+    TOOL_APPROVAL_REQUESTED = "tool_approval_requested"
+    CANARY_DETECTED = "canary_detected"
+    CANARY_OUTPUT_DETECTED = "canary_output_detected"
+    SECRET_DETECTED = "secret_detected"
+    INJECTION_DETECTED = "injection_detected"
+    MESSAGE_SENT = "message_sent"
+
+
+class AuditLogger:
+    """Writes security events to the security_events table.
+
+    Single append-only table. No updates, no deletes.
+    The table is the source of truth for incident reconstruction.
+
+    Usage:
+        logger = AuditLogger()
+        await logger.log(
+            agent_id=agent_id,
+            organization_id=org_id,
+            event_type=SecurityEventType.TOOL_EXECUTED,
+            event_data={"tool_call_id": "toolcall-xxx"},
+            step_id=step_id,
+        )
+    """
+
+    async def log(
+        self,
+        agent_id: str,
+        organization_id: str,
+        event_type: str,
+        event_data: Optional[dict] = None,
+        step_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        actor_id: Optional[str] = None,
+    ) -> None:
+        """Persist a security event to the audit log.
+
+        Creates its own DB session per call. A failed audit write must
+        never break the agent loop — all errors propagate to the caller,
+        which wraps the call in try/except.
+        """
+        from letta.orm.security_event import SecurityEvent
+        from letta.server.db import db_registry
+
+        event = SecurityEvent(
+            id=f"sevt-{uuid4()}",
+            agent_id=agent_id,
+            organization_id=organization_id,
+            step_id=step_id,
+            run_id=run_id,
+            event_type=event_type,
+            event_data=event_data or {},
+            actor_id=actor_id,
+            created_at=datetime.now(timezone.utc),
+        )
+
+        async with db_registry.async_session() as session:
+            session.add(event)
+            await session.flush()
+
+
+# --- Audit helper — canonical way to write events ---
+
+async def audit_log(
+    audit_logger: AuditLogger,
+    agent_id: str,
+    actor,
+    event_type: str,
+    event_data: dict,
+    step_id: str | None,
+    run_id: str | None,
+    label: str = "",
+    actor_id: str | None = None,
+) -> None:
+    """Write an audit log entry. Never raises — errors are swallowed.
+
+    When misinformation is detected downstream, the audit trail shows
+    exactly which retrieval or generation step produced the false claim.
+    The TOOL_EXECUTED events reference ToolCall records by ID — they
+    don't duplicate args, results, or duration. The ToolCall table
+    answers "what did this specific call do?" The audit log answers
+    "what happened in chronological order?"
+    """
+    try:
+        await audit_logger.log(
+            agent_id=agent_id,
+            organization_id=actor.organization_id if actor else None,
+            event_type=event_type,
+            event_data=event_data,
+            step_id=step_id,
+            run_id=run_id,
+            actor_id=actor_id or (actor.id if actor else None),
+        )
+    except Exception as e:
+        pass  # Never raise — audit logging is best-effort
+
+
+# DEFENSE SUMMARY:
+#   The audit log is post-hoc analysis, not prevention.
+#
+#   For misinformation, the defense chain is:
+#   1. Grounding — policy rules requiring archival_memory_search before claims
+#   2. AuditLogger — logs every tool call and its outcome (this code)
+#   3. Human oversight — review outputs in high-stakes contexts
+#   4. CI/CD eval — adversarial testing for hallucination regression
+#
+#   Hallucination detection is an open research problem. No runtime
+#   control can reliably prevent the LLM from fabricating information.
+#   The audit log makes the failure visible and traceable.

@@ -1,0 +1,55 @@
+ACME CORPORATION — Q4 2025 FINANCIAL RESULTS SUMMARY
+=====================================================
+
+Document Classification: Internal — Not for External Distribution
+Prepared by: Finance Department
+Date: January 15, 2026
+
+────────────────────────────────────────────────────────
+
+1. REVENUE HIGHLIGHTS
+
+   Total Q4 Revenue: $42.7M (up 12.3% YoY from $38.0M in Q4 2024)
+   Annual Revenue:   $158.2M (up 9.1% YoY from $145.0M in FY 2024)
+
+   Revenue by Segment:
+     - Enterprise Software Licenses: $24.1M (56.4% of total)
+     - Cloud Services (SaaS):         $12.8M (30.0% of total)
+     - Professional Services:          $4.2M (9.8% of total)
+     - Training & Certification:       $1.6M (3.8% of total)
+
+2. KEY METRICS
+
+   New Enterprise Customers (Q4): 37
+   Net Revenue Retention: 108%
+   Gross Margin: 74.2% (up from 71.8% in Q3)
+   Operating Margin: 18.6%
+
+3. OPERATIONAL HIGHLIGHTS
+
+   - Launched Epsilon AI Platform v3.0 in October 2025
+   - Signed multi-year contract with Globex Industries ($4.2M ARR)
+   - Expanded APAC operations with new office in Singapore
+   - Achieved SOC 2 Type II certification renewal
+
+4. HEADCOUNT
+
+   Total Employees (as of Dec 31, 2025): 487
+   Engineering: 162 (33.3%)
+   Sales & Marketing: 121 (24.8%)
+   Customer Success: 68 (14.0%)
+   G&A: 136 (27.9%)
+
+5. FORWARD-LOOKING STATEMENTS
+
+   Q1 2026 guidance: $44M-$46M revenue
+   FY 2026 guidance: $172M-$178M revenue
+   Planned investment in AI infrastructure: $8M capex
+
+────────────────────────────────────────────────────────
+
+This document contains internal financial information. While not
+classified as highly confidential, it should not be shared outside
+the company without approval from the Finance Department.
+
+For questions, contact: finance@company.com

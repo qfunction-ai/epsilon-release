@@ -1,0 +1,22 @@
+# Ruff configuration — pinned behavior for host and CI parity.
+# CI installs ruff unpinned; this config makes the RULESET explicit so
+# version drift changes behavior less. Keep the CI ruff pinned too
+# (see test.yml lint step).
+
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[lint.per-file-ignores]
+# B008 (call in argument default) is FastAPI's Depends()/Query()/Field()
+# idiom — the framework's designed pattern, not a bug. Ignored app-wide.
+"app/**" = ["B008"]
+# Alembic migrations are generated code with intentional import placement.
+"alembic/**" = ["E402", "F401", "I001"]
+# Test files commonly import for side effects (fixture registration);
+# long fixture signatures and inline YAML literals are acceptable.
+"tests/**" = ["F401", "E501"]
+# Pydantic Field description strings run long by nature (prose).
+"app/schemas/**" = ["E501"]

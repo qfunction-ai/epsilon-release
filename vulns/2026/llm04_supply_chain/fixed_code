@@ -1,0 +1,94 @@
+# SOURCE: .github/workflows/test.yml (extended with supply chain defenses)
+#
+# This defense does NOT live in the agent runtime. It lives in CI/CD.
+# The defense is a pipeline that scans dependencies, checks for known
+# vulnerabilities, and generates an AI Bill of Materials (AIBOM) before
+# any code reaches production.
+#
+# The YAML below shows what a hardened CI/CD pipeline looks like.
+# Epsilon's current test.yml has lint + unit + integration tests but
+# is missing the supply chain steps shown here.
+
+name: Test and Supply Chain
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check backend/
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r backend/requirements.txt pytest pytest-asyncio
+      - run: cd backend && pytest tests/unit/ -v
+
+  # --- Supply chain defense: dependency scanning ---
+  dependency-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Step 1: Scan Python dependencies for known CVEs
+      # pip-audit checks installed packages against the PyPI advisory database
+      # Blocks the pipeline if any HIGH or CRITICAL vulnerability is found
+      - run: pip install pip-audit
+      - run: pip-audit -r backend/requirements.txt --strict
+
+      # Step 2: Scan for typosquatted package names
+      # Catches common typosquatting attacks (e.g., "reqeusts" instead of "requests")
+      - run: pip install safety
+      - run: safety check --file backend/requirements.txt
+
+  # --- Supply chain defense: AIBOM generation ---
+  aibom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Step 3: Generate an AI Bill of Materials
+      # Lists all dependencies, model versions, and their sources
+      # Artifact is stored for audit and incident response
+      - run: |
+          pip install cyclonedx-bom
+          cyclonedx-py requirements backend/requirements.txt -o aibom.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aibom
+          path: aibom.json
+
+      # Step 4: Verify dependency integrity on install
+      # pip install --require-hashes enforces hash-pinned installs — every
+      - run: pip install --require-hashes -r backend/requirements.txt
+
+# DEFENSE SUMMARY:
+#   The supply chain defense is entirely in CI/CD — the agent runtime
+#   has no role. The pipeline ensures:
+#   - No dependency with a known CVE reaches production (pip-audit)
+#   - Typosquatted packages are detected (safety)
+#   - All dependencies are documented in an AIBOM (cyclonedx)
+#   - Package hashes are verified on install (--require-hashes)
+#
+#   Real-world attacks this prevents:
+#   - PyTorch nightly wheel with malicious dependency (2024)
+#   - Hugging Face pickle files with remote code execution (2023)
+#   - npm packages typosquatted as AI libraries delivering malware (2024)

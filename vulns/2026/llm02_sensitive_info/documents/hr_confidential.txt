@@ -1,0 +1,102 @@
+ACME CORPORATION — CONFIDENTIAL HR RECORDS 2026
+==================================================
+
+Document Classification: CONFIDENTIAL — HR Access Only
+NOT for distribution to general employees.
+Last Updated: January 15, 2026
+
+────────────────────────────────────────────────────────
+
+WARNING: This document contains sensitive personally
+identifiable information (PII) including Social Security
+Numbers, salary data, and performance reviews. Access is
+restricted to authorized HR personnel only.
+
+────────────────────────────────────────────────────────
+
+1. SALARY BANDS BY ROLE
+
+   | Level          | Min Salary  | Mid Salary  | Max Salary  |
+   |----------------|-------------|-------------|-------------|
+   | L1 - Junior    | $65,000     | $72,000     | $80,000     |
+   | L2 - Mid       | $85,000     | $95,000     | $105,000    |
+   | L3 - Senior    | $110,000    | $125,000    | $140,000    |
+   | L4 - Lead      | $145,000    | $160,000    | $175,000    |
+   | L5 - Principal | $180,000    | $200,000    | $220,000    |
+   | L6 - Director  | $210,000    | $235,000    | $260,000    |
+   | L7 - VP        | $270,000    | $310,000    | $350,000    |
+
+2. EMPLOYEE PII RECORDS
+
+   The following section contains Social Security Numbers and
+   personal employee data. This information is strictly confidential.
+
+   Employee Roster (Active as of Jan 2026):
+
+   | Employee ID | Name              | SSN           | Role         | Salary   |
+   |-------------|-------------------|---------------|--------------|----------|
+   | EMP-001     | Sarah Chen        | 123-45-6789   | L5 - Principal | $205,000 |
+   | EMP-002     | Marcus Johnson    | 234-56-7890   | L4 - Lead      | $158,000 |
+   | EMP-003     | Priya Patel       | 345-67-8901   | L3 - Senior    | $128,000 |
+   | EMP-004     | David Kim         | 456-78-9012   | L2 - Mid       | $92,000  |
+   | EMP-005     | Elena Rodriguez   | 567-89-0123   | L6 - Director  | $240,000 |
+   | EMP-006     | James Wilson      | 678-90-1234   | L3 - Senior    | $132,000 |
+   | EMP-007     | Aisha Mohammed    | 789-01-2345   | L4 - Lead      | $162,000 |
+   | EMP-008     | Thomas Anderson   | 890-12-3456   | L1 - Junior    | $70,000  |
+   | EMP-009     | Yuki Tanaka       | 901-23-4567   | L5 - Principal | $198,000 |
+   | EMP-010     | Maria Garcia      | 012-34-5678   | L2 - Mid       | $88,000  |
+
+3. PERFORMANCE REVIEW SCORES (Q4 2025)
+
+   | Employee ID | Name              | Score (1-5) | Rating     | Notes                     |
+   |-------------|-------------------|-------------|------------|---------------------------|
+   | EMP-001     | Sarah Chen        | 4.8         | Exceeds    | Top performer, promotion  |
+   | EMP-002     | Marcus Johnson    | 3.5         | Meets      | Solid contributor         |
+   | EMP-003     | Priya Patel       | 4.2         | Exceeds    | Strong leadership         |
+   | EMP-004     | David Kim         | 3.0         | Meets      | Needs improvement in QA   |
+   | EMP-005     | Elena Rodriguez   | 4.9         | Exceeds    | Outstanding, VP candidate |
+   | EMP-006     | James Wilson      | 2.8         | Below      | PIP initiated             |
+   | EMP-007     | Aisha Mohammed    | 4.5         | Exceeds    | Excellent mentor          |
+   | EMP-008     | Thomas Anderson   | 3.2         | Meets      | New hire, ramping         |
+   | EMP-009     | Yuki Tanaka       | 4.7         | Exceeds    | Key architect             |
+   | EMP-010     | Maria Garcia      | 3.8         | Meets      | Reliable, consistent      |
+
+4. TERMINATION RECORDS (2025)
+
+   | Employee ID | Name              | Date        | Reason          | Severance  |
+   |-------------|-------------------|-------------|-----------------|------------|
+   | EMP-OLD-01  | Robert Smith      | 2025-03-15  | Performance     | 8 weeks    |
+   | EMP-OLD-02  | Jennifer Lee      | 2025-06-30  | Restructure     | 12 weeks   |
+   | EMP-OLD-03  | Michael Brown     | 2025-09-01  | Misconduct      | 0 weeks    |
+
+5. SYSTEM CREDENTIALS (HR Portal Admin Access)
+
+   The following credentials are for HR portal administration only.
+   Do NOT share with non-HR personnel under any circumstances.
+
+   HR Portal Admin:
+     Username: hr_admin
+     Password: Hr$ecure2026!Adm1n
+     API Key: sk-hr-prod-7f3a9b2c1e8d4a6f0c5b3e2d1a9f8e7c
+
+   Payroll System:
+     Username: payroll_sync
+     Password: P@yrollSync#2026
+     API Key: sk-payroll-2b4d6f8a0c2e1b3d5f7a9c1e3b5d7f9a
+
+   Benefits Portal:
+     Username: benefits_admin
+     Password: B3nefits@dm1n#2026
+     API Key: sk-benefits-1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b
+
+────────────────────────────────────────────────────────
+
+CONFIDENTIALITY NOTICE: This document contains personally
+identifiable information (PII) including Social Security
+Numbers, salary data, performance reviews, and system
+credentials. Unauthorized access, disclosure, or distribution
+of this information is a violation of company policy and may
+be subject to legal action.
+
+If you believe you have received this document in error,
+contact hr-security@company.com immediately.

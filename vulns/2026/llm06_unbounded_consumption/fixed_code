@@ -1,0 +1,140 @@
+# SOURCE: letta/security/policy.py (trimmed to relevant sections)
+#
+# This is the ACTUAL LettaLocal framework code that prevents unbounded
+# resource consumption. Three controls work together:
+#
+# 1. Rate limits — per-tool and global caps on tool calls
+# 2. Loop detection — detects repeated identical tool calls in a sliding window
+# 3. Default deny — fallback that blocks anything not explicitly allowed
+#
+# All three are configured via the policy section of fixed.yaml.
+
+import hashlib
+import json
+from enum import Enum
+from typing import Any, Dict, Optional
+from pydantic import BaseModel, Field
+
+
+class PolicyAction(str, Enum):
+    ALLOW = "allow"
+    DENY = "deny"
+    REQUIRE_APPROVAL = "require_approval"
+    AUDIT = "audit"
+
+
+# --- Configuration schemas (set via fixed.yaml) ---
+
+class PolicyDefaults(BaseModel):
+    """Default policy settings when no rule matches."""
+    action: PolicyAction = Field(default=PolicyAction.ALLOW)
+    max_tool_calls: Optional[int] = Field(default=None,
+        description="Global per-run tool call limit. Set in fixed.yaml: defaults.max_tool_calls")
+    max_tokens: Optional[int] = Field(default=None, description="Token limit (future)")
+    timeout_seconds: Optional[int] = Field(default=None, description="Timeout limit (future)")
+
+
+class LoopDetectionConfig(BaseModel):
+    """Configuration for tool loop detection.
+
+    Detects when the same tool is called with the same arguments repeatedly
+    within a sliding window of recent calls. This catches agents stuck in
+    loops that per-tool rate limits alone wouldn't catch (e.g., calling
+    archival_memory_search with the same query 5 times when the per-tool limit is 50).
+
+    Enabled by: loop_detection section in fixed.yaml policy
+    """
+    enabled: bool = Field(default=False)
+    window: int = Field(default=5, ge=2,
+        description="Number of recent calls to examine")
+    threshold: int = Field(default=3, ge=2,
+        description="Identical calls within window that triggers denial")
+
+
+# --- Rate limit enforcement ---
+
+def _check_rate_limits(self, tool_name: str) -> Optional[PolicyDecision]:
+    """Check per-tool and global rate limits. Returns DENY if exceeded.
+
+    Per-tool limits are set in fixed.yaml: policy.max_calls_per_tool
+    Global limit is set in fixed.yaml: policy.defaults.max_tool_calls
+    """
+    # Per-tool rate limit (takes precedence)
+    per_tool_limit = self.policy.max_calls_per_tool.get(tool_name)
+    if per_tool_limit is not None:
+        current = self._call_counts.get(tool_name, 0)
+        if current >= per_tool_limit:
+            return PolicyDecision(
+                allowed=False,
+                action="deny",
+                matched_rule=f"max_calls_per_tool/{tool_name}",
+                reason=f"Tool '{tool_name}' exceeded per-run limit of {per_tool_limit} calls",
+            )
+
+    # Global rate limit
+    defaults = self.policy.defaults
+    if defaults is not None and defaults.max_tool_calls is not None:
+        if self._total_calls >= defaults.max_tool_calls:
+            return PolicyDecision(
+                allowed=False,
+                action="deny",
+                matched_rule="defaults/max_tool_calls",
+                reason=f"Global tool call limit of {defaults.max_tool_calls} exceeded",
+            )
+
+    return None
+
+
+# --- Loop detection ---
+
+def _check_loop_detection(self, tool_name: str, eval_context) -> Optional[PolicyDecision]:
+    """Check for tool call loops — same tool + same args repeated within a window.
+
+    Uses a sliding window of recent calls and SHA-256 hashing of tool args
+    to detect repetition. When the threshold is exceeded, the call is denied.
+
+    Example: agent calls archival_memory_search("weather") 3 times in a window of 5 calls.
+    If threshold=3, the 3rd call is denied with reason "loop_detection".
+    """
+    config = self.policy.loop_detection
+    if config is None or not config.enabled:
+        return None
+
+    # Hash the args for comparison (avoid storing raw args in memory)
+    tool_args = eval_context.get("tool_args", {}) if eval_context else {}
+    args_hash = hashlib.sha256(
+        json.dumps(tool_args, sort_keys=True, default=str).encode()
+    ).hexdigest()[:16]
+    current = (tool_name, args_hash)
+
+    # Count occurrences of current call in the sliding window
+    count = sum(1 for c in self._call_window if c == current)
+
+    if count >= config.threshold - 1:
+        return PolicyDecision(
+            allowed=False,
+            action="deny",
+            matched_rule="loop_detection",
+            reason=f"Tool loop detected: '{tool_name}' called with same args "
+                   f"{count + 1} times within window of {config.window}",
+        )
+
+    return None
+
+
+# DEFENSE SUMMARY:
+#   fixed.yaml sets three consumption controls:
+#   1. max_calls_per_tool: { file_read: 20, archival_memory_search: 3 }
+#      → Per-tool caps prevent any single tool from dominating
+#   2. defaults: { max_tool_calls: 100 }
+#      → Global cap prevents total resource exhaustion
+#   3. loop_detection: { enabled: true, window: 10, threshold: 3 }
+#      → Catches agents stuck calling the same tool with same args
+#      (wired through the policy API since LettaLocal 0.16.28; the
+#      schema key is "window" and the API rejects unknown keys with
+#      a 422 — the old window_size key was silently dead)
+#
+#   Together these prevent:
+#   - Token exhaustion from infinite loops
+#   - API quota drain from excessive tool calls
+#   - Denial of service from runaway agent execution

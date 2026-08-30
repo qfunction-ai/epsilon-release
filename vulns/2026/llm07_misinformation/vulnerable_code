@@ -1,0 +1,44 @@
+# SOURCE: backend/app/services/agent_manager.py — _vuln_config_to_agent_config()
+#
+# When a student selects "Vulnerable" for LLM07, the agent can generate
+# false information with confidence. There is no grounding requirement,
+# no audit trail of claims, and no adversarial testing in CI/CD.
+
+@staticmethod
+def _vuln_config_to_agent_config(
+    vuln_config: VulnerabilityConfig,
+    settings: Settings,
+) -> AgentConfig:
+    provider_type = "ollama" if settings.OLLAMA_MODEL.lower().startswith("ollama/") else "openai"
+    model_settings = ModelSettings(provider_type=provider_type, temperature=0.0)
+
+    policy = PolicyConfig(
+        denied_tools=vuln_config.policy.get("denied_tools", []),
+        rules=vuln_config.policy.get("rules", []),
+        max_calls_per_tool=vuln_config.policy.get("max_calls_per_tool", {}),
+        defaults=vuln_config.policy.get("defaults"),  # { action: "allow" }
+    )
+
+    return AgentConfig(
+        system_prompt=vuln_config.system_prompt,
+        tools=vuln_config.tools,
+        policy=policy,
+        canary=vuln_config.canary,
+        content_validation=vuln_config.content_validation,
+        documents=vuln_config.documents,
+        model=settings.OLLAMA_MODEL,
+        embedding=settings.LETTA_EMBEDDING_MODEL,
+        model_settings=model_settings,
+    )
+
+# VULNERABILITY SUMMARY:
+#   - No grounding requirement — agent can make claims without retrieving sources
+#   - No AuditLogger enabled — no post-hoc trail of which retrieval produced claims
+#   - No adversarial testing — no CI/CD check for hallucination regression
+#   - The LLM generates false information with confidence
+#   - Hallucination detection is an OPEN RESEARCH PROBLEM — no runtime
+#     control can reliably prevent it
+#
+#   This is an attack-only vulnerability. The "fixed" side shows the
+#   audit logging framework code that provides post-hoc analysis —
+#   not a guarantee against misinformation.

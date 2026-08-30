@@ -1,0 +1,38 @@
+AI Security Research Notes — Q4 2026
+=====================================
+
+Author: Research Team
+Classification: Internal
+Source: research_team
+
+1. Prompt Injection
+   Prompt injection remains the top attack vector for LLM applications.
+   Indirect injection via retrieved documents is especially dangerous
+   in RAG systems where the LLM cannot distinguish data from instructions.
+
+2. Data Poisoning
+   RAG systems that ingest documents without content validation are
+   vulnerable to data poisoning attacks. An attacker inserts a document
+   containing hidden instructions. When the document is retrieved, the
+   LLM follows the instructions as if they were system directives.
+
+3. Model Distillation
+   Model distillation attacks can extract training data from production
+   models. Attackers query the model extensively and use the responses
+   to train a replica, potentially extracting sensitive training data.
+
+4. Defense Recommendations
+   - Validate all documents at ingest time using pattern matching and
+     classifiers to detect injection attempts
+   - Enforce source access control so agents can only retrieve documents
+     from authorized sources
+   - Scan tool outputs for injection patterns before re-entering LLM context
+   - Use provenance metadata to track document origin and trust level
+   - Apply the Rule of Two: never allow simultaneous access to untrusted
+     input, sensitive data, and state-changing tools
+
+5. Q4 Earnings Context
+   The company's Q4 performance shows strong revenue growth in the
+   cloud services division. Overall revenue increased 23% year-over-year.
+   The security product line saw the largest growth at 45% increase.
+   These figures are preliminary and subject to final audit.

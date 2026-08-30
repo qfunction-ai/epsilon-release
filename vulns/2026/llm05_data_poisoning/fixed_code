@@ -1,0 +1,73 @@
+# SOURCE: letta/security/tool_output_validator.py
+#
+# This is the ACTUAL LettaLocal framework code that scans tool outputs
+# for prompt injection before they re-enter the LLM context window.
+#
+# When a tool (file_read, archival_memory_search) returns
+# content, that content re-enters the LLM context with no validation
+# by default. A poisoned web page or document can inject instructions
+# through tool output. This module prevents that.
+#
+# Enabled by: agent.tool_output_validation_enabled (default False)
+#            Set via content_validation: true in fixed.yaml
+# Called by: letta_agent_v3.py after each tool execution
+# Fail-open: if the validator crashes, the tool result passes through unchanged
+
+async def validate_tool_output(tool_name, tool_result, agent):
+    """Scan a tool result for prompt injection patterns. Fail-open.
+
+    Returns a warning string if injection is detected, None if clean.
+    The caller appends the warning to the tool result before it enters
+    the LLM context window.
+    """
+    try:
+        # Feature flag — default off (Delta unaffected)
+        enabled = getattr(agent, "tool_output_validation_enabled", False)
+        if not enabled:
+            return None
+
+        # Delegate to ContentValidator — same scanner used for tool args
+        from letta.security.content_validator import ContentValidator
+
+        label = ContentValidator.check(tool_result)
+        if label is not None:
+            # Log the detection to the audit trail
+            from letta.security import audit_helpers as _ah
+            await _ah.log_injection_detected(
+                agent.audit_logger,
+                agent.agent_id,
+                agent.actor,
+                tool_name,
+                label,
+                getattr(agent, "_current_step_id", None),
+                getattr(agent, "_current_run_id", None),
+            )
+            # Append warning to the tool result — the LLM sees the warning
+            # but the injected content is still visible (the call is not blocked,
+            # only flagged). This is defense-in-depth, not a hard block.
+            return f"\n\n[SECURITY WARNING: Potential prompt injection detected in tool output ({label})]"
+
+        return None
+
+    except Exception as e:
+        # Fail-open: a broken validator must never break the agent loop
+        return None
+
+
+# DEFENSE SUMMARY:
+#   When content_validation: true is set in fixed.yaml:
+#   - Every tool output is scanned by ContentValidator before re-entering context
+#   - Poisoned web pages, malicious file contents, and tainted RAG results
+#     are detected before the LLM processes them
+#   - An INJECTION_DETECTED event is logged to the audit trail
+#   - A warning is appended to the tool result so the LLM knows the content
+#     may be adversarial
+#
+#   This is the same ContentValidator used for tool arguments (see LLM01's
+#   fixed_code). The scanner covers 6 pattern categories:
+#   1. Direct instruction overrides
+#   2. Role redefinition
+#   3. Role-play markers ([SYS], <<SYS>>, etc.)
+#   4. Delimiter injection (--- SYSTEM ---)
+#   5. Hidden Unicode (zero-width, RTL override)
+#   6. Base64-encoded instructions

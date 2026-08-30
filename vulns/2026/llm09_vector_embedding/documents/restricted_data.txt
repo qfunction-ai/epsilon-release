@@ -1,0 +1,49 @@
+# RESTRICTED — Board-Level Confidential Documents
+# Source ID: tenant_b_restricted
+# Access Level: Restricted — should NOT be accessible to all agents
+# WARNING: In the vulnerable configuration, any agent can retrieve this file.
+
+## Board Resolution — Merger with XYZ Inc.
+
+Date: October 15, 2025
+Classification: CONFIDENTIAL — Board Eyes Only
+
+The board of directors has unanimously approved a merger agreement with
+XYZ Inc. at a valuation of $450M. The merger is expected to close in Q1 2026
+pending regulatory approval. This information has not been publicly disclosed.
+
+## Executive Compensation Package
+
+Date: September 30, 2025
+Classification: CONFIDENTIAL — HR Restricted
+
+CEO total compensation for FY2025: $12.5M
+  - Base salary: $1.2M
+  - Stock options: $8.3M
+  - Performance bonus: $3.0M
+
+CFO total compensation for FY2025: $6.8M
+  - Base salary: $800K
+  - Stock options: $4.5M
+  - Performance bonus: $1.5M
+
+## Acquisition Targets — Strategic Pipeline
+
+Date: November 1, 2025
+Classification: CONFIDENTIAL — M&A Committee
+
+The following companies have been identified as acquisition targets:
+1. DataStream Inc. — Estimated acquisition price: $85M
+2. CloudNine Systems — Estimated acquisition price: $120M
+3. PixelForge — Estimated acquisition price: $45M
+
+All discussions are preliminary and strictly confidential.
+
+## Pending Litigation
+
+Date: October 28, 2025
+Classification: CONFIDENTIAL — Legal
+
+Patent infringement lawsuit filed by OmniTech Industries regarding
+CloudFlow orchestration technology. Potential liability estimated at
+$30M-$50M. Settlement negotiations are ongoing but not yet finalized.

@@ -1,0 +1,34 @@
+# SOURCE: backend/requirements.txt
+#
+# This is Epsilon's ACTUAL dependency list. The vulnerability is not
+# in the code — it's in the supply chain: how dependencies are pinned,
+# scanned, and verified before deployment.
+#
+# VULNERABLE: All pins use >= (minimum version, no upper bound).
+# This means any dependency can be updated to a compromised version
+# without detection. A malicious package published to PyPI with a
+# higher version number would be installed silently.
+
+fastapi>=0.110.0           # VULNERABLE: no upper bound — compromised 0.111.0 would be installed
+uvicorn[standard]>=0.29.0  # VULNERABLE: same issue
+sqlalchemy[asyncio]>=2.0.0 # VULNERABLE: same issue
+asyncpg>=0.29.0            # VULNERABLE: same issue
+alembic>=1.13.0            # VULNERABLE: same issue
+pydantic>=2.6.0            # VULNERABLE: same issue
+pydantic-settings>=2.1.0   # VULNERABLE: same issue
+httpx>=0.27.0              # VULNERABLE: same issue
+python-jose[cryptography]>=3.3.0  # VULNERABLE: same issue
+passlib>=1.7.4             # VULNERABLE: same issue
+bcrypt>=4.0.0,<4.1.0       # This one is pinned correctly — upper bound prevents breakage
+pyyaml>=6.0                # VULNERABLE: same issue
+
+# VULNERABILITY SUMMARY:
+#   - Loose version pins (>=) allow dependency confusion attacks
+#   - No dependency scanning in CI/CD — vulnerabilities not detected
+#   - No AIBOM (AI Bill of Materials) generated — supply chain opaque
+#   - No signature verification on installed packages
+#   - A single compromised dependency gives the attacker code execution
+#     in the Epsilon backend container
+#
+#   This vulnerability is NOT fixable by changing the agent config.
+#   The defense lives in CI/CD — see fixed_code for the pipeline.

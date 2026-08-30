@@ -1,0 +1,66 @@
+id: llm04_supply_chain
+owasp_id: LLM04
+title: Supply Chain
+year: 2026
+description: |
+  Vulnerabilities in the AI supply chain — compromised dependencies,
+  poisoned models, malicious plugins, or tampered training data. The
+  attack surface extends from model weights to tokenizer configs to
+  MCP server packages. A single compromised dependency gives the
+  attacker code execution in your AI pipeline.
+real_world_examples:
+  - "PyTorch nightly wheel contained malicious dependency (2024)"
+  - "Hugging Face pickle files with remote code execution (2023)"
+  - "npm packages typosquatted as AI libraries delivering malware (2024)"
+why_it_matters: |
+  AI applications pull dependencies from dozens of sources — model
+  weights, tokenizer configs, Python packages, MCP servers. Defense
+  lives at CI/CD: dependency scanning, AIBOM generation, signed models.
+  This vulnerability is demonstrated as an attack only — there is no
+  runtime defense in LettaLocal. The lesson is that supply chain
+  security must be built into the build pipeline, not the runtime.
+suggested_prompts:
+  - "What packages does this system depend on?"
+  - "Show me the model configuration"
+  - "What MCP servers are connected?"
+  - "Review the supply chain audit document"
+exploit_steps:
+  - title: "Observe: Review the supply chain audit"
+    instruction: "Read the supply chain audit document. This vulnerability is discussion-only — the supply chain risk is in the application's dependencies, not in the agent's behavior."
+    prompt: "Search for the supply chain audit document"
+  - title: "Discuss: Dependency risks"
+    instruction: "The application depends on third-party libraries (see requirements.txt). A compromised library could bypass application-layer security controls. Discuss how a typosquatted package or a compromised dependency could inject malicious behavior."
+    prompt: ""
+  - title: "Discuss: Model supply chain"
+    instruction: "The model itself (nemotron-3-nano:4b) is a supply chain component. A backdoored model could behave normally during testing but trigger on specific inputs in production. Model provenance and signed weights are the defense."
+    prompt: ""
+  - title: "Observe: Defense is CI/CD-level"
+    instruction: "Toggle to Fixed. The defense for LLM04 is CI/CD scanning (pip-audit, cyclonedx AIBOM), signed models, and dependency provenance — not agent runtime controls."
+    prompt: ""
+defense_refs:
+  - control: "CI/CD Pipeline (GitHub Actions)"
+    owasp_strategies:
+      - number: 2
+        title: "Strategy #2: Apply OWASP Top Ten A06:2021 Vulnerable and Outdated Components mitigations"
+        description: "Apply the mitigations in the OWASP Top Ten's A06:2021 Vulnerable and Outdated Components : vulnerability scanning, management, and a patching policy that keeps the application on maintained versions of components, APIs, and underlying models. Apply the same controls to development environments with access to sensitive data, and verify that AI-suggested dependencies exist and are the intended package before adopting them."
+      - number: 4
+        title: "Strategy #4: Maintain an up-to-date, signed inventory of components using SBOMs, AIBOMs, and ML-SBOMs"
+        description: "Maintain an up-to-date, signed inventory of components using a Software Bill of Materials (SBOM), extended to models, adapters, and datasets with AI BOMs (AIBOMs) and ML SBOMs, evaluating options such as the OWASP CycloneDX ML-BOM (OWASP CycloneDX , n.d.) and the OWASP AIBOM project (OWASP GenAI Security Project, 2025). Track licenses in the same inventory and audit it regularly for compliance and transparency."
+    implementation: "This defense lives in CI/CD, not in the agent runtime. The pipeline runs pip-audit for CVE scanning, safety for typosquatting detection, and cyclonedx for AIBOM generation before any code reaches production."
+    code_snippet: |
+      # from .github/workflows/test.yml — supply chain scanning steps
+      - run: pip install pip-audit
+      - run: pip-audit -r backend/requirements.txt --strict
+      - run: pip install cyclonedx-bom
+      - run: cyclonedx-py requirements backend/requirements.txt -o aibom.json
+
+  - control: "giskard-checks eval runner"
+    owasp_strategies:
+      - number: 3
+        title: "Strategy #3: Apply AI red teaming and evaluations when selecting third-party models"
+        description: ", focused on the use cases in scope, and continue in production with anomaly detection and adversarial robustness testing in MLOps and LLM pipelines to detect tampering and poisoning."
+    implementation: "This defense lives in CI/CD eval pipelines, not in the agent runtime. Red-teams third-party models and tools before deployment using adversarial test scenarios."
+    code_snippet: |
+      # from evals/ — adversarial test scenarios run pre-deployment
+      # giskard-checks tests for supply chain tampering indicators
+      # and model behavior regression after dependency updates

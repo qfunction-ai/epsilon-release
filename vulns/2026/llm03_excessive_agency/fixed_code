@@ -1,0 +1,98 @@
+# SOURCE: letta/security/tool_arg_validator.py
+#
+# This is the ACTUAL LettaLocal framework code that validates tool
+# arguments before execution. It checks for path traversal and SQL
+# injection patterns in all string arguments, regardless of schema.
+#
+# If validation fails, the caller returns a TOOL_DENIED decision with
+# matched_rule="argument_validation_failed". No new event type is needed.
+#
+# Enabled by: tool_arg_validation flag on the agent (default False)
+# Called by: agent_security.py before PolicyChecker.check()
+
+import re
+
+
+# --- Attack patterns — checked on ALL string args regardless of schema ---
+
+# Path traversal: ../, ..\, %2e%2e, /etc/passwd, /etc/shadow
+_PATH_TRAVERSAL = re.compile(
+    r"\.\./|\.\.\\|%2e%2e|%2e%2e/|(?:^|/)(?:etc/(?:passwd|shadow)|proc/self/environ)",
+    re.IGNORECASE,
+)
+
+# SQL injection markers in args that shouldn't contain SQL
+_SQL_INJECTION = re.compile(
+    r"(?:';\s*(?:drop|delete|update|insert|truncate)\b|--\s|/\*|\bor\s+1\s*=\s*1\b)",
+    re.IGNORECASE,
+)
+
+
+def validate_tool_args(tool_name, tool_args, tool_schema=None):
+    """Validate tool arguments against schema and attack patterns.
+
+    Returns an error string if validation fails, None if args are valid.
+    The caller uses the error string as the reason in a TOOL_DENIED decision.
+
+    Fail-open: if the validator crashes, it returns None (args pass through).
+    A broken validator must never break the agent loop.
+
+    Enabled by: agent.tool_arg_validation_enabled (default False)
+    """
+    try:
+        if not isinstance(tool_args, dict):
+            return None  # Nothing to validate
+
+        # --- Attack pattern checks (always run, regardless of schema) ---
+        # These catch malicious input even when no schema is provided.
+        for key, value in tool_args.items():
+            if isinstance(value, str):
+                # Check for path traversal: ../, ..\, /etc/passwd, etc.
+                # Prevents: file_read(path="../../../etc/passwd")
+                if _PATH_TRAVERSAL.search(value):
+                    return f"Path traversal detected in argument '{key}'"
+
+                # Check for SQL injection markers
+                # Prevents: query="'; DROP TABLE users; --"
+                if _SQL_INJECTION.search(value):
+                    return f"Potential SQL injection in argument '{key}'"
+
+        # --- Schema-based validation (only if schema provided) ---
+        if tool_schema is None:
+            return None  # No schema = no schema validation
+
+        properties = tool_schema.get("properties", {})
+        required_fields = set(tool_schema.get("required", []))
+
+        # Check required fields are present
+        missing = required_fields - set(tool_args.keys())
+        if missing:
+            return f"Missing required argument(s): {', '.join(sorted(missing))}"
+
+        # Check types for provided args
+        for key, value in tool_args.items():
+            if key not in properties:
+                continue
+            prop_schema = properties[key]
+            expected_type = prop_schema.get("type")
+            if expected_type and not _check_type(value, expected_type):
+                return f"Argument '{key}' expected type {expected_type}, got {type(value).__name__}"
+
+        return None
+
+    except Exception as e:
+        # Fail-open: validation errors don't break the agent loop
+        return None
+
+
+# DEFENSE SUMMARY:
+#   When tool_arg_validation is enabled as an agent-level attribute:
+#   - Path traversal in tool args is detected and blocked
+#   - SQL injection in tool args is detected and blocked
+#   - Schema violations (missing required fields, wrong types) are caught
+#   - Failed validations return TOOL_DENIED with matched_rule
+#   - The tool never executes — the attack is stopped before the shell command runs
+#
+#   Combined with LoopDetection (in policy.py) and denied_tools (execute_code
+#   removed from the tool list), this gives the fixed agent minimal,
+#   constrained agency instead of unrestricted system access.

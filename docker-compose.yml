@@ -1,0 +1,233 @@
+services:
+  # === Epsilon Backend ===
+  backend:
+    build: ./backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - LETTA_URL=http://letta-local:8283
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - DATABASE_URL=postgresql+asyncpg://epsilon:epsilon@postgres:5432/epsilon
+      - REDIS_URL=redis://redis:6379/0
+      # Production cookie posture: DEV_MODE=false sets the Secure flag
+      # on the auth cookie. See README troubleshooting if login does
+      # not persist on Safari over plain HTTP.
+      - DEV_MODE=false
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONPATH=/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      letta-local:
+        condition: service_healthy
+    volumes:
+      - ./vulns:/app/vulns:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/__pycache__
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; r=httpx.get('http://localhost:8000/health'); r.raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # === Epsilon Frontend ===
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+      - /app/node_modules/.vite
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    restart: unless-stopped
+
+  # === LettaLocal ===
+  # Pinned to 0.16.25. Version history that matters to Epsilon:
+  # - v0.16.18–21: UnboundLocalError ('_ah') crashed EVERY streaming call
+  #   (fixed in 0.16.22 — delta-release/docs/letta-v3-stream-unbound-local-error.md)
+  # - v0.16.23: reset-messages soft-delete fix, policy rule-name errors,
+  #   agent-delete cascades (incomplete — see 0.16.24)
+  # - v0.16.24: tool_calls.step_id + security_events.step_id cascades —
+  #   completes agent deletion for tool-calling agents (all Epsilon agents)
+  # - v0.16.25: streaming canary filter fixed (load order + flush +
+  #   token-boundary-tolerant matchers) — Epsilon's UI is streaming-only,
+  #   so canary redaction is now LIVE. Canary wiring runs through the
+  #   __canary__ memory block; there is NO enable_canary field.
+  # Non-streaming /agent/run is unaffected by the streaming bug class —
+  # always verify /agent/stream directly after any version change.
+  letta-local:
+    image: ghcr.io/qfunction-ai/letta-local:0.16.30
+    user: "1000:1000"
+    ports:
+      - "127.0.0.1:8283:8283"
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
+      - LETTA_PG_URI=postgresql+asyncpg://letta:letta@postgres:5432/letta
+      - LETTA_REDIS_HOST=redis
+      - LETTA_SERVER_PORT=8283
+      - LETTA_LANDLOCK_ALLOW_TCP_CONNECT=true
+      - LETTA_OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - HOME=/home/letta
+      - RES_OPTIONS=${RES_OPTIONS:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - letta_data:/home/letta/.letta
+      - letta_logs:/data/logs
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import httpx; r=httpx.get('http://localhost:8283/v1/health/', follow_redirects=True); r.raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # === PostgreSQL + pgvector ===
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      - POSTGRES_USER=epsilon
+      - POSTGRES_PASSWORD=epsilon
+      - POSTGRES_DB=epsilon
+      - LETTA_USER=letta
+      - LETTA_PASSWORD=letta
+      - LETTA_DB=letta
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U epsilon"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # === Redis ===
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # === OTel Collector ===
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      - jaeger
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    restart: unless-stopped
+
+  # === Jaeger ===
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "127.0.0.1:16686:16686"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  letta_data:
+  letta_logs:

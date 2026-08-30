@@ -1,0 +1,49 @@
+# SOURCE: backend/app/services/agent_manager.py — _vuln_config_to_agent_config()
+#
+# When a student selects "Vulnerable" for LLM06, the agent has no
+# resource consumption limits. It can make unlimited tool calls,
+# enter infinite loops, and exhaust the context window.
+
+@staticmethod
+def _vuln_config_to_agent_config(
+    vuln_config: VulnerabilityConfig,
+    settings: Settings,
+) -> AgentConfig:
+    provider_type = "ollama" if settings.OLLAMA_MODEL.lower().startswith("ollama/") else "openai"
+    model_settings = ModelSettings(provider_type=provider_type, temperature=0.0)
+
+    policy = PolicyConfig(
+        denied_tools=vuln_config.policy.get("denied_tools", []),
+
+        # VULNERABLE: No per-tool rate limits. The agent can call
+        # file_read 1000 times, archival_memory_search 500 times, etc.
+        max_calls_per_tool=vuln_config.policy.get("max_calls_per_tool", {}),  # empty = unlimited
+
+        # VULNERABLE: Default action is "allow" with no global limit.
+        # No max_tool_calls — the agent can make unlimited total calls.
+        defaults=vuln_config.policy.get("defaults"),  # { action: "allow" } — no max_tool_calls
+
+        # VULNERABLE: No loop detection. The agent can call the same
+        # tool with the same arguments indefinitely. A stuck agent
+        # burns through tokens and API quota until it times out.
+        loop_detection=vuln_config.policy.get("loop_detection"),  # None = disabled
+    )
+
+    return AgentConfig(
+        system_prompt=vuln_config.system_prompt,
+        tools=vuln_config.tools,
+        policy=policy,
+        canary=vuln_config.canary,
+        content_validation=vuln_config.content_validation,
+        documents=vuln_config.documents,
+        model=settings.OLLAMA_MODEL,
+        embedding=settings.LETTA_EMBEDDING_MODEL,
+        model_settings=model_settings,
+    )
+
+# VULNERABILITY SUMMARY:
+#   - No max_calls_per_tool → unlimited per-tool calls
+#   - No max_tool_calls → unlimited total calls
+#   - No LoopDetection → infinite repetition undetected
+#   - Default action "allow" → nothing throttled
+#   - Result: token exhaustion, API quota drain, denial of service

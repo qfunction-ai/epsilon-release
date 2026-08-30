@@ -1,0 +1,50 @@
+# SOURCE: backend/app/services/agent_manager.py — _vuln_config_to_agent_config()
+#
+# When a student selects "Vulnerable" for LLM05, poisoned documents are
+# loaded into archival memory with no scanning. The LLM treats injected
+# instructions in those documents as legitimate content.
+
+@staticmethod
+def _vuln_config_to_agent_config(
+    vuln_config: VulnerabilityConfig,
+    settings: Settings,
+) -> AgentConfig:
+    provider_type = "ollama" if settings.OLLAMA_MODEL.lower().startswith("ollama/") else "openai"
+    model_settings = ModelSettings(provider_type=provider_type, temperature=0.0)
+
+    policy = PolicyConfig(
+        denied_tools=vuln_config.policy.get("denied_tools", []),
+        rules=vuln_config.policy.get("rules", []),
+        max_calls_per_tool=vuln_config.policy.get("max_calls_per_tool", {}),
+        defaults=vuln_config.policy.get("defaults"),  # empty policy {} = effective default allow
+    )
+
+    return AgentConfig(
+        system_prompt=vuln_config.system_prompt,
+        tools=vuln_config.tools,
+
+        policy=policy,
+
+        # VULNERABLE: No content validation. Documents loaded into archival
+        # memory are never scanned for injection patterns. A poisoned document
+        # can contain hidden instructions (zero-width Unicode, base64-encoded
+        # commands) that the LLM will follow when the document is retrieved.
+        canary=vuln_config.canary,  # False
+        content_validation=vuln_config.content_validation,  # False
+
+        # VULNERABLE: Poisoned documents are listed here and ingested into
+        # archival memory at agent creation time. No provenance check, no
+        # content scanning, no access control on the document source.
+        # vulnerable.yaml has: documents: [clean_research.txt, poisoned_research.txt]
+        documents=vuln_config.documents,
+
+        model=settings.OLLAMA_MODEL,
+        embedding=settings.LETTA_EMBEDDING_MODEL,
+        model_settings=model_settings,
+    )
+
+# VULNERABILITY SUMMARY:
+#   - No content validation → poisoned RAG content passes through unscanned
+#   - No document provenance check → any document can be loaded
+#   - Hidden Unicode in documents → invisible instructions to the LLM
+#   - The fix is content_validation: true in fixed.yaml

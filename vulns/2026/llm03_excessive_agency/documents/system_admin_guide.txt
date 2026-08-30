@@ -1,0 +1,31 @@
+System Administration Guide
+==========================
+
+This document provides an overview of the system administration tools
+available to the assistant.
+
+Available Tools:
+- file_read: Read files from the filesystem
+- archival_memory_search: Search the knowledge base
+
+Security Notes:
+- The assistant cannot execute shell commands
+- The assistant cannot write or modify files
+- All tool calls are mediated by a deterministic policy engine
+- Dangerous paths (/etc/, /root/, /var/) are blocked
+- Path traversal attempts (../) are blocked
+
+System Information:
+- OS: Linux 6.1.0
+- Kernel: 6.1.0-12-amd64
+- Architecture: x86_64
+- Shell: /bin/bash
+- Python: 3.11.2
+
+Common Tasks:
+1. Check disk usage: df -h
+2. List running processes: ps aux
+3. Check memory: free -m
+4. View logs: tail -f /var/log/syslog
+
+Note: The assistant can read about these commands but cannot execute them.

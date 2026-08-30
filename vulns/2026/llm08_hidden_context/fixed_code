@@ -1,0 +1,154 @@
+# SOURCE: letta/security/canary.py + letta/security/canary_output_filter.py
+#         + letta/security/block_guard.py
+#
+# This is the ACTUAL LettaLocal framework code that defends against
+# hidden context exposure. Four controls work together:
+#
+# 0. Canary wiring — canary_value in fixed.yaml becomes a __canary__
+#    READ-ONLY memory block at agent creation (Epsilon passes it via
+#    the create payload; LettaLocal's load_canary finds the block and
+#    points every canary control at THIS value). The persona line
+#    carries the canary too — both locations are watched.
+# 1. CanaryChecker — detects canary token in tool arguments (blocks exfiltration)
+# 2. CanaryOutputFilter — redacts canary from assistant messages AND,
+#    via StreamingCanaryFilter (rolling buffer, live redaction), from
+#    the token stream as it reaches the user (defense-in-depth)
+# 3. BlockGuard — enforces read_only on memory blocks (prevents modification)
+#
+# All are enabled by setting canary: true + canary_value in fixed.yaml.
+
+import json
+import uuid
+from typing import Optional
+
+
+# ============================================================
+# 1. CanaryChecker — tool-call interception
+# ============================================================
+
+class CanaryChecker:
+    """Scans tool arguments for the canary string.
+
+    The canary is a random string carried in the __canary__ read-only
+    memory block (and echoed in the persona line). If it appears in a
+    tool call's arguments, the agent is trying to exfiltrate the
+    system prompt.
+
+    Layer 1 of defense:
+    - Layer 1: CanaryChecker blocks tool calls with canary tokens (this class)
+    - Layer 2: CanaryOutputFilter + StreamingCanaryFilter redact canary
+      from assistant messages AND the live token stream
+    - Layer 3: BlockGuard prevents modification of read-only blocks
+
+    Enabled by: canary: true + canary_value in fixed.yaml
+    """
+    CANARY_PREFIX = "CANARY-"
+
+    def __init__(self, canary_value=None):
+        self.canary_value = canary_value
+
+    def check(self, tool_args):
+        """Check if the canary string appears in any tool argument.
+
+        Serializes tool_args to JSON and checks for the canary as a substring.
+        The CANARY- prefix makes false positives negligible.
+
+        Returns True if canary detected (exfiltration attempt), False if clean.
+        """
+        if not self.canary_value:
+            return False
+        args_str = json.dumps(tool_args)
+        return self.canary_value in args_str
+
+    @classmethod
+    def generate_canary_value(cls):
+        """Generate a new canary value: CANARY-{uuid}."""
+        return f"{cls.CANARY_PREFIX}{uuid.uuid4()}"
+
+
+# ============================================================
+# 2. CanaryOutputFilter — assistant message redaction
+# ============================================================
+
+REDACTED_CANARY = "[REDACTED_CANARY]"
+CANARY_WARNING = (
+    "\n\n[SECURITY WARNING: A prompt exfiltration attempt was detected and blocked. "
+    "The canary token carried in the __canary__ block was found in this message.]"
+)
+
+
+class CanaryOutputFilter:
+    """Scans assistant messages for the exact canary token value.
+
+    The CanaryChecker intercepts tool calls, but an agent can bypass it
+    by typing the canary directly in its assistant message text. The
+    output filter closes this gap by scanning messages before they
+    reach the user.
+
+    Layer 2 of defense (see CanaryChecker above for Layer 1).
+    Fail-open: if the filter crashes, the message passes through unmodified.
+
+    STREAMING: the StreamingCanaryFilter (same module) applies the same
+    redaction to the LIVE token stream — a rolling buffer holds back
+    text that might contain a partial canary match and flushes it
+    redacted once the boundary resolves. Non-streaming and streaming
+    paths converge on identical redaction (the streaming filter was
+    dead code until LettaLocal 0.16.25 fixed its load order and
+    token-boundary matching).
+    """
+    def scan(self, message, canary_value):
+        """Scan a message for the canary value.
+
+        Returns redacted text if found, None if clean.
+        """
+        if not canary_value:
+            return None
+
+        # Only assistant messages carry user-visible text
+        if not hasattr(message, 'content') or not isinstance(message.content, str):
+            return None
+
+        if canary_value in message.content:
+            return message.content.replace(canary_value, REDACTED_CANARY)
+
+        return None
+
+
+# ============================================================
+# 3. BlockGuard — read-only enforcement at the data layer
+# ============================================================
+
+def check_read_only_block(block, operation="modify"):
+    """Check if a block is read-only and reject the operation.
+
+    Prevents:
+    1. Deleting a read-only block (canary block)
+    2. Changing the label of a read-only block (disables canary lookup)
+    3. Flipping the read_only flag (escalation attack)
+
+    Layer 3 of defense — safety net for code paths that call
+    block_manager directly, bypassing the tool executor.
+
+    Enabled by: canary: true in fixed.yaml (canary block is created read-only)
+    """
+    if block.read_only:
+        raise ValueError(
+            "Cannot modify a read-only block. This block is protected "
+            "to prevent tampering with security controls."
+        )
+
+
+# DEFENSE SUMMARY:
+#   When canary: true + canary_value are set in fixed.yaml:
+#   1. The canary (e.g. CANARY-eps-08-...) becomes a __canary__ READ-ONLY
+#      memory block at agent creation; the persona line echoes it —
+#      both locations are watched
+#   2. CanaryChecker scans every tool call — blocks if canary is in the args
+#   3. CanaryOutputFilter scans every assistant message AND
+#      StreamingCanaryFilter redacts the live token stream — a canary
+#      that leaks into visible output is replaced with [REDACTED_CANARY]
+#   4. BlockGuard prevents the agent from modifying or deleting the canary block
+#
+#   Together these layers make system prompt exfiltration detectable
+#   and blockable across ALL output channels: tool calls, complete
+#   assistant messages, and the live stream itself.

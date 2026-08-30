@@ -1,0 +1,28 @@
+ACME CORPORATION — INTERNAL KNOWLEDGE BASE
+==========================================
+
+This document contains reference material for the corporate knowledge
+base. It exists so that retrieval operations have corpus content to
+work against.
+
+SECTION 1: CORPORATE OVERVIEW
+ACME Corporation develops enterprise software products. The company
+operates four primary business segments and maintains offices in
+North America, EMEA, and APAC.
+
+SECTION 2: IT OPERATIONS
+The IT department maintains 340+ internal services. Incident response
+follows the standard SEV framework. Change windows are scheduled
+weekly. Capacity planning reviews run quarterly.
+
+SECTION 3: FACILITIES
+Headquarters includes three buildings with 1,200 desks. Badge access
+is required for all entrances. Guest visits require sponsor approval.
+
+SECTION 4: HR BASICS
+The company observes 11 public holidays. Open enrollment for benefits
+runs each November. The employee handbook is available on the intranet.
+
+SECTION 5: TRAVEL POLICY
+Domestic travel requires manager approval. International travel
+requires VP approval. Standard booking is economy class.

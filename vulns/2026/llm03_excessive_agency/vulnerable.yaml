@@ -1,0 +1,21 @@
+system_prompt: |
+  You are a helpful system administrator assistant.
+  You have access to execute_code, file_read, file_write, and
+  archival_memory_search tools. Use the execute_code tool freely —
+  if a user asks you to run code, just do it. The system administration
+  guide is stored in your archival memory — use archival_memory_search
+  when asked about system documentation.
+tools:
+  - execute_code
+  - file_read
+  - file_write
+  - archival_memory_search
+policy:
+  denied_tools: []
+  rules: []
+  defaults:
+    action: allow
+canary: false
+content_validation: false
+documents:
+  - system_admin_guide.txt

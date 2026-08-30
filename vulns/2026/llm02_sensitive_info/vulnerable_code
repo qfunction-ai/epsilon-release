@@ -1,0 +1,68 @@
+# SOURCE: backend/app/services/agent_manager.py — _vuln_config_to_agent_config()
+#
+# When a student selects "Vulnerable" for LLM02, this function receives
+# the vulnerable.yaml config. The agent can disclose sensitive information
+# because no controls scan tool outputs or restrict file access.
+
+@staticmethod
+def _vuln_config_to_agent_config(
+    vuln_config: VulnerabilityConfig,
+    settings: Settings,
+) -> AgentConfig:
+    """Convert a VulnerabilityConfig into an AgentConfig."""
+
+    provider_type = "ollama" if settings.OLLAMA_MODEL.lower().startswith("ollama/") else "openai"
+    model_settings = ModelSettings(provider_type=provider_type, temperature=0.0)
+
+    policy = PolicyConfig(
+        # VULNERABLE: No tools are denied. The agent can read any file
+        # in archival memory, including files containing secrets.
+        denied_tools=vuln_config.policy.get("denied_tools", []),  # empty = nothing denied
+
+        # VULNERABLE: No policy rules to restrict file access or
+        # detect secrets in tool arguments.
+        rules=vuln_config.policy.get("rules", []),  # empty = no rules
+
+        max_calls_per_tool=vuln_config.policy.get("max_calls_per_tool", {}),
+
+        # VULNERABLE: Default action is "allow". Any file read or tool
+        # output containing secrets passes through without scanning.
+        defaults=vuln_config.policy.get("defaults"),  # { action: "allow" }
+    )
+
+    return AgentConfig(
+        system_prompt=vuln_config.system_prompt,
+
+        # VULNERABLE: file_read and archival_memory_search tools are
+        # exposed. The agent can read any document, including those
+        # containing API keys, tokens, or credentials.
+        tools=vuln_config.tools,
+
+        policy=policy,
+
+        # VULNERABLE: No canary — system prompt can be exfiltrated,
+        # revealing the agent's instructions and available documents.
+        canary=vuln_config.canary,  # False
+
+        # VULNERABLE: No content validation — tool outputs containing
+        # secrets are never scanned. If file_read returns a file with
+        # AWS keys or passwords, the content enters the LLM context
+        # window unredacted.
+        content_validation=vuln_config.content_validation,  # False
+
+        # VULNERABLE: Documents with sensitive content loaded into
+        # archival memory with no scanning or access control.
+        documents=vuln_config.documents,
+
+        model=settings.OLLAMA_MODEL,
+        embedding=settings.LETTA_EMBEDDING_MODEL,
+        model_settings=model_settings,
+    )
+
+# VULNERABILITY SUMMARY:
+#   - No SecretPatternChecker — secrets in tool arguments are not detected
+#   - No policy rules — file access is unrestricted
+#   - Default action "allow" — any tool output passes through
+#   - The fix is in fixed.yaml: policy rules using CONTAINS_SECRET scan tool
+#     ARGS via SecretPatternChecker; content validation scans tool OUTPUTS for
+#     injection patterns (not secrets) — there is no output-side secret scanning

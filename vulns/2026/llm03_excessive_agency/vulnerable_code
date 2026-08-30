@@ -1,0 +1,58 @@
+# SOURCE: backend/app/services/agent_manager.py — _vuln_config_to_agent_config()
+#
+# When a student selects "Vulnerable" for LLM03, the agent has excessive
+# agency — it can execute shell commands, access any file, and repeat
+# tool calls indefinitely with no restrictions.
+
+@staticmethod
+def _vuln_config_to_agent_config(
+    vuln_config: VulnerabilityConfig,
+    settings: Settings,
+) -> AgentConfig:
+    """Convert a VulnerabilityConfig into an AgentConfig."""
+
+    provider_type = "ollama" if settings.OLLAMA_MODEL.lower().startswith("ollama/") else "openai"
+    model_settings = ModelSettings(provider_type=provider_type, temperature=0.0)
+
+    policy = PolicyConfig(
+        # VULNERABLE: No tools are denied. execute_code is exposed.
+        # An injected instruction can run arbitrary shell commands.
+        denied_tools=vuln_config.policy.get("denied_tools", []),  # empty = nothing denied
+
+        # VULNERABLE: No policy rules. No ToolArgValidator checks.
+        # Path traversal (../etc/passwd) and SQL injection in tool
+        # arguments are never detected.
+        rules=vuln_config.policy.get("rules", []),  # empty = no rules
+
+        # VULNERABLE: No rate limits. The agent can repeat tool calls
+        # indefinitely — a loop that calls execute_code 1000 times.
+        max_calls_per_tool=vuln_config.policy.get("max_calls_per_tool", {}),  # empty = unlimited
+
+        # VULNERABLE: Default action is "allow". No LoopDetection.
+        # The agent can enter an infinite tool-call loop with no breaker.
+        defaults=vuln_config.policy.get("defaults"),  # { action: "allow" }
+    )
+
+    return AgentConfig(
+        system_prompt=vuln_config.system_prompt,
+
+        # VULNERABLE: execute_code is in the tool list. The agent has
+        # full system access — install packages, modify files, exfiltrate data.
+        tools=vuln_config.tools,  # includes execute_code
+
+        policy=policy,
+        canary=vuln_config.canary,
+        content_validation=vuln_config.content_validation,
+        documents=vuln_config.documents,
+
+        model=settings.OLLAMA_MODEL,
+        embedding=settings.LETTA_EMBEDDING_MODEL,
+        model_settings=model_settings,
+    )
+
+# VULNERABILITY SUMMARY:
+#   - execute_code exposed with no restrictions → arbitrary code execution
+#   - No ToolArgValidator → path traversal and SQL injection not checked
+#   - No LoopDetection → agent can repeat tool calls indefinitely
+#   - No rate limits → unlimited resource consumption
+#   - Default action "allow" → every tool call executes

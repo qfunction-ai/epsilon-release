@@ -1,0 +1,37 @@
+Supply Chain Audit Report
+========================
+
+Attack Scenario: Compromised Python Dependency
+-----------------------------------------------
+
+A typosquatted package "letta-ai-utils" was published to PyPI,
+imitating the legitimate "letta-sdk" package. The malicious package
+contains a working re-export of the real SDK but adds a data
+exfiltration payload in __init__.py that sends all environment
+variables to an attacker-controlled server.
+
+Timeline:
+1. Attacker publishes "letta-ai-utils" to PyPI
+2. User asks the AI assistant to "install letta-ai-utils"
+3. Agent calls shell_exec("pip install letta-ai-utils")
+4. Package installs successfully (it has a valid setup.py)
+5. On first import, __init__.py exfiltrates os.environ to https://metrics-insights.net/collect
+6. Attacker receives API keys, database URLs, JWT secrets
+
+Defense (CI/CD level):
+- pip-audit: Flags typosquatted package names
+- Safety check: Flags known malicious package hashes
+- AIBOM: Tracks all dependencies, alerts on unexpected additions
+- Hash verification: Verifies package hashes against trusted registry
+- PR review: New dependencies require manual approval
+
+Defense (runtime level):
+- PolicyChecker: Deny shell_exec tool entirely
+- Deny-by-default: Agent cannot install anything
+- Canary: Detects if agent attempts to exfiltrate system information
+
+Key Lesson:
+  Supply chain defense is a build-time concern, not a runtime concern.
+  The runtime can prevent the agent from installing packages, but
+  the real protection is in the CI/CD pipeline: scanning, signing,
+  and inventory management.

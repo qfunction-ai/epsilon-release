@@ -1,0 +1,64 @@
+// SOURCE: frontend/src/components/DefenseList.tsx (current fixed version)
+//
+// This is Epsilon's ACTUAL fixed code. The vulnerability was removed
+// by replacing dangerouslySetInnerHTML with React node rendering.
+// React automatically encodes HTML entities — no manual escaping needed.
+
+import type { ReactNode } from 'react'
+import type { DefenseRef } from '../types'
+
+interface DefenseListProps {
+  defenses: DefenseRef[]
+}
+
+export function DefenseList({ defenses }: DefenseListProps) {
+  return (
+    <div className="defense-list">
+      {defenses.map((defense, i) => (
+        <div key={i} className="defense-item">
+          <div className="defense-item-title">{defense.control}</div>
+
+          {/* FIXED: React node rendering instead of dangerouslySetInnerHTML.
+              React automatically encodes all HTML entities in {expression}.
+              No <script> tag or <img onerror> handler can execute.
+              The LLM output is treated as untrusted text — same rule
+              as any user-generated content. */}
+          <div className="defense-item-body">
+            {renderDescription(defense.description)}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// FIXED: No manual HTML escaping. React handles encoding automatically.
+// The function splits on backticks and wraps code segments in <code> tags.
+// No dangerouslySetInnerHTML — everything goes through React's JSX escaping.
+function renderDescription(desc: string): ReactNode[] {
+  const parts = desc.split(/`([^`]+)`/g)
+  return parts.map((part, i) =>
+    // Odd indices are the captured group (text between backticks)
+    i % 2 === 1
+      ? <code key={i}>{part}</code>  // React escapes the content automatically
+      : <span key={i}>{part}</span>   // React escapes the content automatically
+  )
+}
+
+// DEFENSE SUMMARY:
+//   This defense lives in the FRONTEND, not in the agent framework.
+//   The fix is treating LLM output as untrusted content — the same
+//   rule as user input in any web application.
+//
+//   1. React node rendering — automatic HTML entity encoding
+//      No <script>, <img onerror>, or any HTML can execute.
+//      This is the primary defense against XSS from LLM output.
+//
+//   2. Content Security Policy (CSP) — defense-in-depth
+//      A CSP header prevents inline script execution even if XSS occurs.
+//      Example: Content-Security-Policy: default-src 'self'
+//      Epsilon should add CSP headers to the backend response.
+//
+//   The lesson: LLM output is user-generated content. Never trust it
+//   as HTML. Always render through a framework that escapes entities
+//   automatically. dangerouslySetInnerHTML is never the right answer.

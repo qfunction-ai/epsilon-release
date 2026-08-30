@@ -1,0 +1,105 @@
+Resource Limits — Attack Scenario Documentation
+===============================================
+
+Vulnerability: LLM06 Unbounded Consumption
+OWASP ID: LLM06
+Year: 2026
+
+Attack Overview
+---------------
+An attacker exploits the absence of resource limits to exhaust the LLM's
+compute budget, API quota, or tool call allowances. The goal is denial
+of service — either degrading the system for all users or running up
+enormous cloud bills.
+
+Attack Vectors
+--------------
+
+1. Token Exhaustion
+   The attacker sends a prompt that requests maximum token generation:
+   "Write a 10000 word essay about the history of computing"
+   "Repeat the word 'token' 50000 times"
+
+   Without a token budget, the LLM will attempt to generate the full
+   response, consuming thousands of tokens. At scale, this exhausts
+   API rate limits and drives up costs.
+
+   Defense: TokenBudget — per-run and per-step token limits halt
+   inference when the budget is exhausted. This is a non-overridable
+   ceiling that cannot be bypassed by prompt content.
+
+2. Tool-Calling Loop
+   The attacker tricks the LLM into calling the same tool repeatedly:
+   "Search for 'test' and then search for 'test' again and again"
+   "Call web_search 100 times in a row"
+
+   Without loop detection or per-tool rate limits, the agent will
+   call web_search indefinitely. Each call consumes API credits,
+   network resources, and compute time.
+
+   Defense: ToolLoopDetection — detects same-tool-same-args repetition
+   within a sliding window. Blocks loops after threshold (default: 3
+   repeats in 10 calls). PolicyChecker enforces per-tool rate limits
+   (max_calls_per_tool) as a secondary defense.
+
+3. Context Overflow Spiral
+   The attacker sends inputs that cause the conversation context to
+   grow without bound. Each tool call adds results to the context,
+   and the LLM keeps processing the growing context.
+
+   Without a circuit breaker, the context window overflows, causing
+   errors. The agent may spiral — retrying with the same oversized
+   context, hitting the same error repeatedly.
+
+   Defense: CircuitBreaker — detects context overflow and triggers
+   auto_compact to gracefully reduce context size. After max
+   overflows (default: 2), the circuit breaker trips and halts the
+   agent.
+
+4. Adversarial Token Maximization
+   The attacker crafts inputs specifically designed to maximize
+   token generation — using techniques like recursive expansion,
+   chain-of-thought triggering, or output format manipulation.
+
+   Defense: TokenBudget per-step limit caps the maximum tokens
+   consumed in a single LLM call, regardless of input.
+
+Resource Limits Applied in Fixed Configuration
+----------------------------------------------
+
+Token Budget:
+  max_run_tokens: 50000     (per-run ceiling — non-overridable)
+  max_step_tokens: 8000     (per-step ceiling)
+
+Per-Tool Rate Limits:
+  web_search: 10 calls
+  file_read: 20 calls
+  archival_memory_search: 50 calls
+  archival_memory_insert: 5 calls
+
+Global Limits:
+  max_tool_calls: 100       (total tool calls per run)
+
+Loop Detection:
+  threshold: 3              (max same-tool-same-args repeats)
+  window_size: 10           (sliding window for detection)
+
+Circuit Breaker:
+  max_consecutive_errors: 3
+  max_context_overflows: 2
+  max_context_chars: 100000
+
+Impact Assessment
+-----------------
+Without defenses:
+  - A single attacker can exhaust API quota for all users
+  - Tool-calling loops can consume $1000s in API credits
+  - Context overflows cause cascading errors and service degradation
+  - No graceful degradation — the system crashes or hangs
+
+With defenses:
+  - Token budget halts inference before costs spiral
+  - Per-tool rate limits cap individual tool invocations
+  - Loop detection breaks infinite tool-calling cycles
+  - Circuit breaker provides graceful degradation via auto_compact
+  - The system degrades gracefully rather than crashing

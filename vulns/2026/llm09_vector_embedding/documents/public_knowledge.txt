@@ -1,0 +1,34 @@
+# Public Company Knowledge Base
+# Source ID: tenant_a_public
+# Access Level: Public — safe to share with all authorized agents
+
+## Company Overview
+
+Acme Corporation is a technology company founded in 2015. We build cloud
+infrastructure products and developer tools. Our headquarters is in Seattle,
+Washington, with remote employees across 12 countries.
+
+## Q3 2025 Financial Results
+
+- Revenue: $10.2M (up 15% year-over-year)
+- Active customers: 4,500
+- Net promoter score: 62
+- Product launches: 3 major releases in Q3
+
+## Product Catalog
+
+1. CloudFlow — Cloud orchestration platform
+2. DevPipe — CI/CD pipeline automation
+3. Sentinel — Infrastructure monitoring and alerting
+
+## Public Announcements
+
+- Acme Corp named "Best Place to Work" by TechWeekly (September 2025)
+- Partnership announced with GreenCloud for sustainable computing (October 2025)
+- New office opening in Austin, Texas (November 2025)
+
+## Customer Success Stories
+
+- TechStart Inc. reduced deployment time by 70% using CloudFlow
+- DataHub Corp saved $2M annually by migrating to DevPipe
+- NanoSoft achieved 99.99% uptime with Sentinel monitoring
