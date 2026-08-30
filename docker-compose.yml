@@ -70,9 +70,9 @@ services:
     restart: unless-stopped
 
   # === LettaLocal ===
-  # Pinned to 0.16.25. Version history that matters to Epsilon:
+  # Pinned to 0.16.30. Version history that matters to Epsilon:
   # - v0.16.18–21: UnboundLocalError ('_ah') crashed EVERY streaming call
-  #   (fixed in 0.16.22 — delta-release/docs/letta-v3-stream-unbound-local-error.md)
+  #   (fixed in 0.16.22)
   # - v0.16.23: reset-messages soft-delete fix, policy rule-name errors,
   #   agent-delete cascades (incomplete — see 0.16.24)
   # - v0.16.24: tool_calls.step_id + security_events.step_id cascades —
@@ -81,6 +81,16 @@ services:
   #   token-boundary-tolerant matchers) — Epsilon's UI is streaming-only,
   #   so canary redaction is now LIVE. Canary wiring runs through the
   #   __canary__ memory block; there is NO enable_canary field.
+  # - v0.16.26: prompt-mode dual emission fixed (holdback + end-of-stream
+  #   decision) — tool-call JSON no longer leaks into chat text
+  # - v0.16.27: empty-step silent death fixed (bounded continuation nudge
+  #   + visible EMPTY_RESPONSE_NOTICE)
+  # - v0.16.28: loop_detection exposed on the policy API (extra=forbid —
+  #   wrong keys 422 loudly) + abandoned-run noise fix
+  # - v0.16.29: run abort API (cancel machinery made reachable)
+  # - v0.16.30: Landlock sandbox three-layer fix (logging handler crash,
+  #   staging dir consumption, allowed_read_paths) — file tools ran
+  #   silently UNSANDBOXED before this on Docker Desktop < 29.7.2
   # Non-streaming /agent/run is unaffected by the streaming bug class —
   # always verify /agent/stream directly after any version change.
   letta-local:
