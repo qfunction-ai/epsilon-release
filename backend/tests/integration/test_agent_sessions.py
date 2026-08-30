@@ -128,15 +128,17 @@ def test_concurrent_run_different_users_ok(app_client):
     """VULN-003: the guard is per-user — two users run concurrently
     without interference (the stack serializes them at the model
     layer, which is not this endpoint's concern)."""
-    from concurrent.futures import ThreadPoolExecutor
     import time as _time
+    from concurrent.futures import ThreadPoolExecutor
 
     c, stub = app_client.client, app_client.stub
     h_a = _auth(c)
 
     # second user via SQL (registration closed after first admin)
     import asyncio as _asyncio
+
     import asyncpg as _asyncpg
+
     from app.api.auth import hash_password as _hash
 
     async def _seed():

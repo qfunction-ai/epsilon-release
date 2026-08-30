@@ -10,7 +10,6 @@ import asyncio
 
 import asyncpg
 
-
 TEST_DB = "postgresql://epsilon:epsilon@localhost:5432/epsilon_test"
 
 
