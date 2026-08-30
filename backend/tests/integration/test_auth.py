@@ -65,6 +65,50 @@ def test_login_rate_limit_429(app_client):
     assert r.status_code == 429
 
 
+def test_rate_limit_nat_collapse_fixed(app_client):
+    """VULN-005: one username's lockout must not 429 a different user
+    sharing the same client IP (the Docker-NAT classroom shape). The
+    old IP-only keying failed exactly this; username:ip buckets pass.
+    """
+    c = app_client.client
+    c.post("/auth/register", json={
+        "username": "firstadmin", "password": "password123",
+        "confirm_password": "password123",
+    })
+    # Burn user A's bucket: 5 failed logins (same shared testclient IP)
+    for _ in range(5):
+        c.post("/auth/login", json={"username": "firstadmin", "password": "WRONG"})
+    assert c.post(
+        "/auth/login", json={"username": "firstadmin", "password": "password123"}
+    ).status_code == 429, "user A must be locked out"
+
+    # User B, SAME client IP: registration is closed, so SQL-provision
+    # the user, then log in — must succeed (own bucket, not shared).
+    import asyncio
+
+    import asyncpg
+
+    from app.api.auth import hash_password
+
+    async def _seed():
+        conn = await asyncpg.connect(
+            "postgresql://epsilon:epsilon@localhost:5432/epsilon_test"
+        )
+        try:
+            await conn.execute(
+                "INSERT INTO users (username, hashed_password) VALUES ($1, $2)",
+                "studentB", hash_password("password123"),
+            )
+        finally:
+            await conn.close()
+
+    asyncio.run(_seed())
+    r = c.post("/auth/login", json={"username": "studentB", "password": "password123"})
+    assert r.status_code == 200, (
+        f"NAT collapse regressed: user B locked by user A's failures ({r.status_code})"
+    )
+
+
 def test_me_requires_auth(app_client):
     r = app_client.client.get("/auth/me")
     assert r.status_code == 401

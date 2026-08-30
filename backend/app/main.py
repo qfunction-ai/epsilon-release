@@ -78,6 +78,29 @@ app.include_router(security_router, prefix="/security", tags=["security"])
 app.include_router(observability_router, prefix="/observability", tags=["observability"])
 
 
+# VULN-006 (security review, advisory): warn when DEV_MODE=True and
+# traffic arrives for a non-local Host — dev mode disables the Secure
+# cookie flag, which only makes sense on loopback. Once per process
+# (per-request spam helps nobody). NOTE: the Host header is
+# client-controlled — this is a deployment warning, not enforcement.
+_dev_mode_warned = False
+
+
+@app.middleware("http")
+async def dev_mode_nonlocal_warning(request: Request, call_next):
+    global _dev_mode_warned
+    if not _dev_mode_warned and get_settings().DEV_MODE:
+        host = (request.headers.get("host") or "").split(":")[0].lower()
+        if host and host not in ("localhost", "127.0.0.1", "::1", "[::1]", "testclient"):
+            logger.warning(
+                "DEV_MODE=True with non-local Host '%s' — auth cookies lack the "
+                "Secure flag. Set DEV_MODE=false for any non-loopback deployment.",
+                host,
+            )
+            _dev_mode_warned = True
+    return await call_next(request)
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
