@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
@@ -55,7 +56,11 @@ class RunRequest(BaseModel):
     year: int = Field(..., description="OWASP edition year")
     vuln_id: str = Field(..., description="Vulnerability ID, e.g. 'llm01_prompt_injection'")
     code_state: str = Field(..., description="'vulnerable' or 'fixed'")
-    message: str = Field(..., description="User message to send to the agent")
+    # VULN-007 (security review): unbounded messages were forwarded
+    # verbatim to the model — memory/queue abuse and accidental
+    # context blowouts on a 4B model. 20k chars is far beyond any
+    # legitimate exercise prompt. Covers /run and /stream (shared).
+    message: str = Field(..., max_length=20_000, description="User message to send to the agent")
 
 
 class RunResponse(BaseModel):
@@ -141,6 +146,13 @@ async def _get_or_create_session(
     For now, one session per user + vulnerability. If the code_state
     changes, the session is updated (not recreated) — the agent_manager
     handles the agent update.
+
+    VULN-004: (user_id, vulnerability_id) has a DB unique constraint.
+    If two requests race past the in-flight guard (some future code
+    path), the loser's flush raises IntegrityError once the winner's
+    row commits — recover by rolling back and re-selecting the
+    winner's row. Safe here: this runs before any other writes in
+    the request, so the rollback discards nothing else.
     """
     result = await db.execute(
         select(SessionModel).where(
@@ -157,8 +169,18 @@ async def _get_or_create_session(
             code_state=code_state,
             agent_id="",  # Will be set by agent_manager
         )
-        db.add(session)
-        await db.flush()
+        try:
+            db.add(session)
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            result = await db.execute(
+                select(SessionModel).where(
+                    SessionModel.user_id == user.id,
+                    SessionModel.vulnerability_id == f"{year}_{vuln_id}",
+                )
+            )
+            session = result.scalar_one()
 
     return session
 

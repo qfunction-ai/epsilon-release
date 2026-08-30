@@ -180,3 +180,101 @@ def test_concurrent_run_different_users_ok(app_client):
         results = sorted([fa.result().status_code, fb.result().status_code])
 
     assert results == [200, 200], f"both users must run: got {results}"
+
+
+def test_session_unique_constraint_enforced(app_client):
+    """VULN-004: the (user_id, vulnerability_id) unique constraint
+    exists at the DB level — a direct duplicate insert raises."""
+    import asyncio
+
+    import asyncpg
+    from sqlalchemy.exc import IntegrityError
+
+    from app.main import app as epsilon_app  # noqa: F401 (models registered)
+
+    c = app_client.client
+    h = _auth(c)
+    # Establish the first session through the API
+    r = c.post("/agent/run", headers=h, json={
+        "vuln_id": "llm03_excessive_agency", "year": 2026,
+        "code_state": "vulnerable", "message": "seed",
+    })
+    assert r.status_code == 200
+    session = r.json()["session_id"]
+
+    async def _dup():
+        conn = await asyncpg.connect(
+            "postgresql://epsilon:epsilon@localhost:5432/epsilon_test"
+        )
+        try:
+            await conn.execute(
+                """
+                INSERT INTO sessions (id, user_id, agent_id, vulnerability_id, code_state)
+                VALUES ($1, (SELECT user_id FROM sessions WHERE id = $2),
+                        'agent-dup', '2026_llm03_excessive_agency', 'vulnerable')
+                """,
+                "00000000-0000-0000-0000-000000000001", session,
+            )
+        finally:
+            await conn.close()
+
+    try:
+        asyncio.run(_dup())
+        raised = False
+    except Exception as exc:
+        # asyncpg surfaces unique violations as UniqueViolationError;
+        # both it and SQLAlchemy's IntegrityError prove the constraint
+        msg = str(exc).lower()
+        raised = "uq_sessions_user_vuln" in msg or "duplicate key" in msg
+    assert raised, "duplicate session insert did NOT hit the unique constraint"
+    _ = IntegrityError  # referenced for documentation; asyncpg raises its own type
+
+
+def test_two_runs_reuse_one_session_row(app_client):
+    """VULN-004 regression guard: sequential runs for the same
+    (user, vuln) reuse ONE session row — no duplicate creation."""
+    import asyncio
+
+    import asyncpg
+
+    c = app_client.client
+    h = _auth(c)
+    for msg in ("first turn", "second turn"):
+        r = c.post("/agent/run", headers=h, json={
+            "vuln_id": "llm04_supply_chain", "year": 2026,
+            "code_state": "vulnerable", "message": msg,
+        })
+        assert r.status_code == 200, r.text
+
+    async def _count():
+        conn = await asyncpg.connect(
+            "postgresql://epsilon:epsilon@localhost:5432/epsilon_test"
+        )
+        try:
+            return await conn.fetchval(
+                "SELECT count(*) FROM sessions WHERE vulnerability_id = '2026_llm04_supply_chain'"
+            )
+        finally:
+            await conn.close()
+
+    n = asyncio.run(_count())
+    assert n == 1, f"expected exactly 1 session row, found {n}"
+
+
+def test_oversized_message_422(app_client):
+    """VULN-007: messages over 20,000 chars are rejected by Pydantic."""
+    c = app_client.client
+    h = _auth(c)
+    r = c.post("/agent/run", headers=h, json={
+        "vuln_id": "llm01_prompt_injection", "year": 2026,
+        "code_state": "vulnerable",
+        "message": "x" * 20_001,
+    })
+    assert r.status_code == 422, f"expected 422 for oversized message, got {r.status_code}"
+    # /stream shares the model — same rejection
+    r = c.post("/agent/stream", headers=h, json={
+        "vuln_id": "llm01_prompt_injection", "year": 2026,
+        "code_state": "vulnerable",
+        "message": "x" * 20_001,
+    })
+    assert r.status_code == 422

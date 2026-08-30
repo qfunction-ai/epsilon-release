@@ -49,25 +49,46 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 # Cookie name
 COOKIE_NAME = "epsilon_token"
 
-# Rate limiting — in-memory, per IP
+# Rate limiting — in-memory, per username+IP.
+# VULN-005 (security review 2026-08-29):
+# - Keyed by username:client_ip, NOT IP alone: behind Docker NAT every
+#   client shares the backend-visible IP, so IP-only keying let one
+#   student's five failures 429 the entire class for a minute. Each
+#   username now has its own bucket; brute-forcing one username locks
+#   exactly that username+IP pair.
+# - Sweep on every check: stale keys (empty after window pruning) are
+#   dropped, so the dict cannot grow unboundedly. This matters because
+#   the dict is a defaultdict — merely CHECKING a never-seen key
+#   creates it (Delta review), so growth needed no failed logins.
+# - X-Forwarded-For is deliberately NOT trusted (no reverse proxy in
+#   the deployment model); behind a proxy all clients would share the
+#   proxy IP, and the username half of the key keeps buckets separate.
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 _RATE_LIMIT_WINDOW = 60  # seconds
 _RATE_LIMIT_MAX = 5
 
 
-def _check_rate_limit(client_ip: str) -> None:
-    """Check if the IP has exceeded the login rate limit."""
+def _check_rate_limit(username: str, client_ip: str) -> None:
+    """Check the login rate limit for a username+IP bucket."""
     now = time.time()
-    attempts = _login_attempts[client_ip]
-    # Prune old attempts
-    _login_attempts[client_ip] = [t for t in attempts if now - t < _RATE_LIMIT_WINDOW]
-    if len(_login_attempts[client_ip]) >= _RATE_LIMIT_MAX:
-        logger.warning(f"Rate limit hit for login from {client_ip}")
+    key = f"{username}:{client_ip}"
+
+    # Prune this bucket's window and sweep stale keys (bounded dict).
+    for k in list(_login_attempts):
+        pruned = [t for t in _login_attempts[k] if now - t < _RATE_LIMIT_WINDOW]
+        if pruned:
+            _login_attempts[k] = pruned
+        else:
+            del _login_attempts[k]
+
+    attempts = _login_attempts[key]
+    if len(attempts) >= _RATE_LIMIT_MAX:
+        logger.warning(f"Rate limit hit for login user={username} from {client_ip}")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Too many login attempts. Try again in {_RATE_LIMIT_WINDOW} seconds.",
         )
-    _login_attempts[client_ip].append(now)
+    _login_attempts[key].append(now)
 
 
 def _create_access_token(data: dict) -> str:
@@ -188,7 +209,9 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ):
     """Authenticate and set JWT as httpOnly cookie."""
-    _check_rate_limit(request.client.host if request.client else "unknown")
+    _check_rate_limit(
+        body.username, request.client.host if request.client else "unknown"
+    )
 
     result = await db.execute(select(User).where(User.username == body.username))
     user = result.scalar_one_or_none()

@@ -15,7 +15,7 @@ without querying Letta.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -35,6 +35,17 @@ class Session(Base):
     """
 
     __tablename__ = "sessions"
+    # VULN-004 (security review 2026-08-29): one session per user per
+    # vulnerability, enforced at the DB level. Two concurrent
+    # first-messages previously both inserted (scalar_one_or_none then
+    # 500s on every later request — observed live 2026-08-30). The
+    # per-user in-flight guard in agent.py blocks the race from /run
+    # and /stream; this constraint is the guarantee for any future
+    # code path. Migration 003 deduped existing data (kept the OLDEST
+    # row per pair) before adding it.
+    __table_args__ = (
+        UniqueConstraint("user_id", "vulnerability_id", name="uq_sessions_user_vuln"),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36),
