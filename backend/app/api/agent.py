@@ -37,6 +37,18 @@ router = APIRouter()
 # here and discard on completion so nothing is GC'd mid-flight.
 _abort_tasks: set[asyncio.Task] = set()
 
+# VULN-003 fix (security review 2026-08-29): per-user single-flight
+# guard. user.id is in the set while one of the user's runs/streams is
+# active; a second concurrent request gets 429 (reject, never queue —
+# queueing would hide the single-slot wedge and stack latency).
+# Check-and-add is atomic by construction on a single event loop: no
+# awaits between the membership check and the add. This is why an
+# in-flight SET is used instead of an asyncio.Lock — a check-then-
+# acquire Lock pattern is only race-free by implementation detail (the
+# uncontended fast path never suspends), and one inserted await would
+# reopen the race. Do NOT insert awaits between check and add, ever.
+_in_flight: set[int] = set()
+
 
 class RunRequest(BaseModel):
     """Request body for running an agent."""
@@ -159,49 +171,67 @@ async def run_agent(
     user: User = Depends(get_current_user),
 ):
     """Run an agent with a message. Creates/updates agent as needed."""
-    letta_client = _get_letta_client(request)
-    manager = AgentManager(letta_client, request.app.state.vuln_loader, get_settings())
+    # VULN-003: single-flight guard — FIRST, before any DB work. Two
+    # parallel first-messages for the same vuln would both pass the
+    # session-exists check and insert duplicate session rows (the
+    # VULN-004 race); rejecting here makes that race unreachable from
+    # /run. Check-and-add is atomic: no awaits between.
+    if user.id in _in_flight:
+        raise HTTPException(
+            status_code=429,
+            detail="Another agent run is already in progress for this user",
+        )
+    _in_flight.add(user.id)
 
-    # Get the vulnerability config for the requested code_state
+    # Everything below owns the slot — the finally guarantees release
+    # on EVERY exit path (404, agent-setup failure, run failure,
+    # success), so a user can never be permanently wedged.
     try:
-        vuln_config = await manager.get_config_for_vuln(body.year, body.vuln_id, body.code_state)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        letta_client = _get_letta_client(request)
+        manager = AgentManager(letta_client, request.app.state.vuln_loader, get_settings())
 
-    # Get or create session
-    session = await _get_or_create_session(db, user, body.year, body.vuln_id, body.code_state)
+        # Get the vulnerability config for the requested code_state
+        try:
+            vuln_config = await manager.get_config_for_vuln(body.year, body.vuln_id, body.code_state)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
 
-    # Ensure agent exists and is configured for the right code_state
-    if not session.agent_id:
-        session.agent_id = None  # Ensure None, not empty string
+        # Get or create session
+        session = await _get_or_create_session(db, user, body.year, body.vuln_id, body.code_state)
 
-    vuln_dir = request.app.state.vuln_loader.get_vuln_dir(body.year, body.vuln_id)
-    agent_id = await manager.ensure_agent(session, vuln_config, body.code_state, vuln_dir)
-    await db.commit()
+        # Ensure agent exists and is configured for the right code_state
+        if not session.agent_id:
+            session.agent_id = None  # Ensure None, not empty string
 
-    # Run the agent
-    try:
-        response = await letta_client.run_agent(agent_id, body.message)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Agent run failed: {e}")
-        # Wiring A (abort plan): the server-side run is typically STILL
-        # ACTIVE at this point (timeout signature = wedge cascade).
-        # Abort before responding, freeing the inference slot instead
-        # of orphaning the run to grind into the next request. Cost:
-        # the 502 waits up to ~10s + N abort POSTs — accepted for slot
-        # reclamation (Delta review).
-        aborted = await letta_client.abort_active_runs(agent_id)
-        if aborted:
-            logger.info(f"Run failure containment: aborted {aborted} active run(s) for {agent_id}")
-        raise HTTPException(status_code=502, detail=safe_error(e)) from e
+        vuln_dir = request.app.state.vuln_loader.get_vuln_dir(body.year, body.vuln_id)
+        agent_id = await manager.ensure_agent(session, vuln_config, body.code_state, vuln_dir)
+        await db.commit()
 
-    return RunResponse(
-        session_id=session.id,
-        agent_id=agent_id,
-        response=response,
-    )
+        # Run the agent
+        try:
+            response = await letta_client.run_agent(agent_id, body.message)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Agent run failed: {e}")
+            # Wiring A (abort plan): the server-side run is typically STILL
+            # ACTIVE at this point (timeout signature = wedge cascade).
+            # Abort before responding, freeing the inference slot instead
+            # of orphaning the run to grind into the next request. Cost:
+            # the 502 waits up to ~10s + N abort POSTs — accepted for slot
+            # reclamation (Delta review).
+            aborted = await letta_client.abort_active_runs(agent_id)
+            if aborted:
+                logger.info(f"Run failure containment: aborted {aborted} active run(s) for {agent_id}")
+            raise HTTPException(status_code=502, detail=safe_error(e)) from e
+
+        return RunResponse(
+            session_id=session.id,
+            agent_id=agent_id,
+            response=response,
+        )
+    finally:
+        _in_flight.discard(user.id)
 
 
 @router.post("/stream")
@@ -216,96 +246,131 @@ async def stream_agent(
     Commits DB state before opening the stream. The stream is a pure ASGI
     response — no DB access during streaming.
     """
-    letta_client = _get_letta_client(request)
-    manager = AgentManager(letta_client, request.app.state.vuln_loader, get_settings())
+    # VULN-003: single-flight guard — FIRST, before any DB work (same
+    # placement rationale as /run: a parallel first-message would
+    # create duplicate session rows before hitting the guard). REJECT
+    # before acquiring, never await a held slot (queueing is the
+    # anti-pattern). Atomic: no awaits between check and add. The
+    # generator's finally is the release point; the handler-level
+    # except releases if response construction fails before the
+    # generator takes ownership.
+    if user.id in _in_flight:
+        raise HTTPException(
+            status_code=429,
+            detail="Another agent run is already in progress for this user",
+        )
+    _in_flight.add(user.id)
 
+    # Everything below owns the slot until the response is
+    # successfully returned — then the generator's finally is the
+    # release point. Any failure before that (404, DB error, agent
+    # setup) hits the except here, so the slot can never leak.
     try:
-        vuln_config = await manager.get_config_for_vuln(body.year, body.vuln_id, body.code_state)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        letta_client = _get_letta_client(request)
+        manager = AgentManager(letta_client, request.app.state.vuln_loader, get_settings())
 
-    session = await _get_or_create_session(db, user, body.year, body.vuln_id, body.code_state)
-
-    if not session.agent_id:
-        session.agent_id = None
-
-    vuln_dir = request.app.state.vuln_loader.get_vuln_dir(body.year, body.vuln_id)
-    agent_id = await manager.ensure_agent(session, vuln_config, body.code_state, vuln_dir)
-    await db.commit()
-
-    async def event_stream():
-        """Generate SSE events from LettaLocal stream.
-
-        Letta's /messages endpoint with streaming=true already returns
-        SSE-formatted lines (data: {...}\n\n). Yield them directly without
-        re-wrapping to avoid double encoding (data: data: {...}).
-
-        Wiring C (abort plan): capture run_id from any event that carries
-        it (pings arrive early and repeatedly). If the stream does NOT
-        complete normally — client disconnect (GeneratorExit/Cancelled)
-        OR mid-stream error — fire a shielded abort so the server-side
-        run stops instead of grinding the single-slot inference queue.
-        A completed-normally flag keeps healthy turns silent (Delta
-        review: per-turn abort noise would be misread as a bug later).
-        """
-        run_id: str | None = None
-        stream_completed = False
         try:
-            async for line in letta_client.stream_agent(agent_id, body.message):
-                payload = line[6:] if line.startswith("data: ") else line
-                # Capture run_id from the first event that carries it
-                if run_id is None and payload.lstrip().startswith("{"):
-                    try:
-                        evt = json.loads(payload)
-                        rid = evt.get("run_id")
-                        if isinstance(rid, str) and rid:
-                            run_id = rid
-                    except (json.JSONDecodeError, ValueError):
-                        pass
-                # Letta returns SSE-formatted lines starting with "data: "
-                if line.startswith("data: "):
-                    yield f"{line}\n\n"
-                else:
-                    yield f"data: {line}\n\n"
-            # Letta's stream ended normally — the run is terminal
-            # server-side. Mark BEFORE the [DONE] yield so a client
-            # disconnect exactly at [DONE] does not fire a spurious
-            # abort of an already-finished run.
-            stream_completed = True
-            yield "data: [DONE]\n\n"
-        except Exception as e:
-            logger.error(f"Stream error: {e}")
-            yield f"data: {json.dumps({'error': safe_error(e)})}\n\n"
-        finally:
-            if not stream_completed:
-                if run_id or session.agent_id:
-                    async def _fire_abort() -> None:
+            vuln_config = await manager.get_config_for_vuln(body.year, body.vuln_id, body.code_state)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+
+        session = await _get_or_create_session(db, user, body.year, body.vuln_id, body.code_state)
+
+        if not session.agent_id:
+            session.agent_id = None
+
+        vuln_dir = request.app.state.vuln_loader.get_vuln_dir(body.year, body.vuln_id)
+        agent_id = await manager.ensure_agent(session, vuln_config, body.code_state, vuln_dir)
+        await db.commit()
+
+        async def event_stream():
+            """Generate SSE events from LettaLocal stream.
+
+            Letta's /messages endpoint with streaming=true already returns
+            SSE-formatted lines (data: {...}\\n\\n). Yield them directly without
+            re-wrapping to avoid double encoding (data: data: {...}).
+
+            Wiring C (abort plan): capture run_id from any event that carries
+            it (pings arrive early and repeatedly). If the stream does NOT
+            complete normally — client disconnect (GeneratorExit/Cancelled)
+            OR mid-stream error — fire a shielded abort so the server-side
+            run stops instead of grinding the single-slot inference queue.
+            A completed-normally flag keeps healthy turns silent (Delta
+            review: per-turn abort noise would be misread as a bug later).
+
+            VULN-003: the finally below releases the single-flight slot
+            FIRST, then fires the abort — the abort is a shielded
+            background task, so releasing first lets the user retry
+            immediately while the abort reclaims the inference slot.
+            """
+            run_id: str | None = None
+            stream_completed = False
+            try:
+                async for line in letta_client.stream_agent(agent_id, body.message):
+                    payload = line[6:] if line.startswith("data: ") else line
+                    # Capture run_id from the first event that carries it
+                    if run_id is None and payload.lstrip().startswith("{"):
                         try:
-                            if run_id:
-                                await letta_client.abort_run(run_id)
-                                logger.info(f"Stream teardown abort fired for run {run_id}")
-                            else:
-                                n = await letta_client.abort_active_runs(session.agent_id)
-                                if n:
-                                    logger.info(
-                                        f"Stream teardown abort fired for agent {session.agent_id} ({n} run(s))"
-                                    )
-                        except Exception as abort_exc:
-                            logger.warning(f"teardown abort task failed (continuing): {abort_exc}")
+                            evt = json.loads(payload)
+                            rid = evt.get("run_id")
+                            if isinstance(rid, str) and rid:
+                                run_id = rid
+                        except (json.JSONDecodeError, ValueError):
+                            pass
+                    # Letta returns SSE-formatted lines starting with "data: "
+                    if line.startswith("data: "):
+                        yield f"{line}\n\n"
+                    else:
+                        yield f"data: {line}\n\n"
+                # Letta's stream ended normally — the run is terminal
+                # server-side. Mark BEFORE the [DONE] yield so a client
+                # disconnect exactly at [DONE] does not fire a spurious
+                # abort of an already-finished run.
+                stream_completed = True
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                logger.error(f"Stream error: {e}")
+                yield f"data: {json.dumps({'error': safe_error(e)})}\n\n"
+            finally:
+                # VULN-003: release the slot before the abort wiring —
+                # see docstring.
+                _in_flight.discard(user.id)
+                if not stream_completed:
+                    if run_id or session.agent_id:
+                        async def _fire_abort() -> None:
+                            try:
+                                if run_id:
+                                    await letta_client.abort_run(run_id)
+                                    logger.info(f"Stream teardown abort fired for run {run_id}")
+                                else:
+                                    n = await letta_client.abort_active_runs(session.agent_id)
+                                    if n:
+                                        logger.info(
+                                            f"Stream teardown abort fired for agent {session.agent_id} ({n} run(s))"
+                                        )
+                            except Exception as abort_exc:
+                                logger.warning(f"teardown abort task failed (continuing): {abort_exc}")
 
-                    task = asyncio.create_task(_fire_abort())
-                    _abort_tasks.add(task)
-                    task.add_done_callback(_abort_tasks.discard)
+                        task = asyncio.create_task(_fire_abort())
+                        _abort_tasks.add(task)
+                        task.add_done_callback(_abort_tasks.discard)
 
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    except Exception:
+        # Response construction failed before the generator could take
+        # ownership of the slot — release it here (double-discard is a
+        # no-op on a set).
+        _in_flight.discard(user.id)
+        raise
 
 
 @router.get("/messages/{session_id}")

@@ -44,6 +44,11 @@ class StubLettaClient:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
         self._next = 0
+        # Canned security events (settable per-test for scoping tests).
+        self.security_events: list = [{"event_type": "tool_denied", "agent_id": None}]
+        # Artificial run latency (seconds) for concurrency-guard tests —
+        # models the single inference slot being occupied.
+        self.run_delay: float = 0.0
 
     def _id(self) -> str:
         self._next += 1
@@ -66,6 +71,8 @@ class StubLettaClient:
 
     async def run_agent(self, agent_id: str, message: str) -> dict:
         self.calls.append(("run_agent", agent_id, message))
+        if self.run_delay:
+            await asyncio.sleep(self.run_delay)
         return {
             "messages": [
                 {
@@ -82,7 +89,7 @@ class StubLettaClient:
 
     async def get_security_events(self, **kw) -> list:
         self.calls.append(("get_security_events", kw))
-        return [{"event_type": "tool_denied", "agent_id": kw.get("agent_id")}]
+        return self.security_events
 
     async def get_observability(self, **kw) -> dict:
         self.calls.append(("get_observability", kw))

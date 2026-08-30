@@ -2,6 +2,16 @@
 
 Reads from the VulnLoader cached at startup. No database access needed —
 vulnerability configs are static YAML files loaded from disk.
+
+DELIBERATE POSTURE (VULN-001, security review 2026-08-29 — accepted
+by product decision): these routes are intentionally unauthenticated.
+Epsilon is a single-user, local-deployment teaching application —
+registration closes after the first user, and the README instructs
+running on loopback only. In that posture the curriculum is the
+single user's own content. Do NOT expose Epsilon to a network; a
+purposely vulnerable application must not be reachable beyond the
+local machine. If multi-user or networked deployment is ever
+supported, add get_current_user to every route here first.
 """
 
 from __future__ import annotations
