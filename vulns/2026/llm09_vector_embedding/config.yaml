@@ -24,6 +24,10 @@ why_it_matters: >
   carries no injection instructions — it exploits retrieval mechanics and model
   safety behavior. Defense requires source provenance control and retrieval
   monitoring, not content validation.
+  Related risk (LLM02): embeddings inherit the sensitivity of their
+  source text. Embedding governance is data governance (LLM02's
+  lesson) — applied to the vector store, not just the documents.
+
 
 suggested_prompts:
   - "What was the company's Q4 revenue?"

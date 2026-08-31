@@ -1,10 +1,14 @@
 # LLM07 — Fixed configuration
 #
 # The agent is instructed to answer based on retrieved documents only and to
-# say "I don't know" when it lacks grounding. A deny-by-default policy limits
-# tool calls to prevent runaway retrieval. Content validation is enabled so
-# that claims without supporting citations are flagged. A canary token is
-# embedded for exfiltration detection.
+# say "I don't know" when it lacks grounding. A deny-by-default allow-list
+# policy keeps retrieval working while limiting everything else.
+#
+# Tier 2 trim (2026-08-31, review item 5): canary and content_validation
+# are OFF for llm07 — they are injection/exfiltration controls and were
+# noise in the misinformation lesson. The toggle now isolates: grounding
+# persona (soft) + audit trail vs the vulnerable state's ungrounded
+# answers.
 #
 # IMPORTANT: Runtime controls are limited. No runtime defense fully prevents
 # hallucination. Real defense is grounding, verification, and human oversight.
@@ -19,7 +23,6 @@ system_prompt: >-
   answering; never describe your document collection from memory.
   Answer based on retrieved documents only.
   If you don't know, say so. Never fabricate information.
-  CANARY-eps-07-misinfo-2026
 
 tools:
   - file_read
@@ -30,8 +33,9 @@ policy:
   # of name, no condition object, actions outside PolicyAction) — the
   # policy PUT 422'd and fresh fixed toggles failed with 502. Their
   # intent (require grounding, flag uncited claims) has no PolicyAction
-  # expression; the grounding defense lives in the fixed persona +
-  # giskard evals (see defense_refs).
+  # expression; the grounding defense lives in the fixed persona + the
+  # audit trail (see defense_refs — the persona rule is labeled SOFT
+  # there; the eval-runner citation was removed with the eval infra).
   rules:
     # Grounding requires working retrieval (fixed persona: "answer
     # based on retrieved documents only")
@@ -60,9 +64,8 @@ policy:
     action: deny
     max_tool_calls: 100
 
-canary: true
-canary_value: CANARY-eps-07-misinfo-2026
-content_validation: true
+canary: false
+content_validation: false
 
 documents:
   - research_papers.txt

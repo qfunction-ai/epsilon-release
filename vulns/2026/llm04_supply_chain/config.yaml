@@ -27,6 +27,12 @@ why_it_matters: |
   tab's guided reading to work the audit document; the Defense tab
   cites what OWASP actually recommends and which parts this repo's
   pipeline does and does not implement.
+  Related risk (LLM07): hallucinated package names are a supply-chain
+  attack surface — models confidently recommend packages that do not
+  exist, and attackers register those hallucinated names in real
+  registries ("slopsquatting"). A hallucinating agent (LLM07) can
+  route you directly onto a malicious dependency (LLM04).
+
 suggested_prompts:
   - "What does the supply chain audit say about dependency risks?"
   - "Summarize the audit's findings about the model supply chain"

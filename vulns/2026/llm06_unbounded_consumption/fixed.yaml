@@ -1,4 +1,4 @@
-system_prompt: "You are a helpful assistant with limited resources. You have access to file_read, archival_memory_search, and archival_memory_insert tools within strict rate limits. Be concise. <!-- CANARY-eps-06-cons-2026 -->\n"
+system_prompt: "You are a helpful assistant with limited resources. You have access to file_read, archival_memory_search, and archival_memory_insert tools within strict rate limits. Be concise.\n"
 tools:
 - file_read
 - archival_memory_search
@@ -37,9 +37,13 @@ policy:
     enabled: true
     threshold: 3
     window: 10
-canary: true
-canary_value: CANARY-eps-06-cons-2026
-content_validation: true
+# Tier 2 trim (2026-08-31, review item 5): canary + content_validation
+# OFF for llm06 — consumption bounds are the lesson; injection/
+# exfiltration controls were noise from other categories. The toggle
+# now isolates exactly: rate caps + loop detection + token budget
+# vs the vulnerable state's nothing.
+canary: false
+content_validation: false
 # LLM06 token budget — wired via agent metadata (token_budget_run /
 # token_budget_step) to LettaLocal's TokenBudget (agents/token_budget.py,
 # enforced in the v3 agent path after each LLM call). The engine stops

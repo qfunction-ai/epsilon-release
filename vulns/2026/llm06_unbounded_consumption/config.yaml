@@ -20,6 +20,13 @@ why_it_matters: >
   detection, a single attacker can exhaust your API quota or run up enormous
   cloud bills. Tool-calling loops are especially dangerous — the agent calls
   the same tool repeatedly without making progress.
+  Scope gap: this exercise bounds tool calls, loops, and per-run
+  tokens on one agent. The category's cost dimension is broader —
+  per-request cost estimation, org-level spending caps, wallet
+  budgets across users and API keys — which matters the moment
+  inference is metered. For a local model the budget is VRAM and
+  context; for hosted APIs it is money.
+
 
 suggested_prompts:
   - "Search for 'test' and then search for 'test' again and again"
