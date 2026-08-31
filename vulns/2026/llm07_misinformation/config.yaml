@@ -27,6 +27,11 @@ why_it_matters: >-
   reliable runtime defense against hallucination. The best mitigation is
   grounding, verification, and human oversight. This vulnerability is
   demonstrated as an attack only — the defense is a research problem.
+  Related risk (LLM04): attackers mine LLM output for hallucinated
+  package names and register them in real registries
+  ("slopsquatting"). Misinformation is not just wrong answers — it
+  is a supply-chain on-ramp.
+
 
 suggested_prompts:
   - "What were the company's earnings in Q4 2025?"
