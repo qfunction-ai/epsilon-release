@@ -61,7 +61,13 @@ services:
       - ALL
     tmpfs:
       - /tmp
-      - /app/node_modules/.vite
+      # uid/gid MUST match the Dockerfile's epsilon user (1001):
+      # tmpfs defaults to root ownership; Vite (uid 1001) then gets
+      # EACCES creating its dep-optimize dirs and every dep request
+      # 504s — blank page on every fresh boot. (Synced from dev fix
+      # 0b30b35; the release compose diverges intentionally on
+      # DEV_MODE but must carry this.)
+      - /app/node_modules/.vite:uid=1001,gid=1001,mode=0770
     deploy:
       resources:
         limits:
