@@ -1,18 +1,26 @@
 # LLM04 Supply Chain — Vulnerable Configuration
 #
-# Note: LLM04 is a discussion-only vulnerability. The supply chain risk
-# is in the application's dependencies (requirements.txt, model weights,
-# fine-tuning data), not in the agent's tool access. The agent does NOT
-# have execute_code — installing packages is excessive agency (LLM03),
-# not supply chain attack.
+# LLM04 is a READING EXERCISE (external review 2026-08-31 finding,
+# Ryan decision): the supply chain risk lives in the application's
+# dependencies (requirements.txt, package-lock.json, model weights,
+# fine-tuning data), not in the agent's tool access. The agent does
+# NOT have execute_code — installing packages is excessive agency
+# (LLM03), not supply chain attack. There is NO runtime agent control
+# that addresses supply-chain risk, so this state and fixed.yaml are
+# deliberately IDENTICAL: a toggle delta here would imply a control
+# that does not exist (the old fixed config's "execute_code removed"
+# comment referenced a tool this state never granted — a placebo).
 #
-# The vulnerable state shows an agent with no policy restrictions
-# discussing the supply chain audit document. The real vulnerability
-# is in the software supply chain itself.
+# Use the chat as a document Q&A aid for the supply chain audit
+# document; the actual lesson lives in the Overview and Defense tabs.
 
 system_prompt: |
-  You are a helpful assistant that can discuss security audits and supply chain risks.
-  You have access to file_read and archival_memory_search to review documents.
+  You are a helpful assistant that can discuss security audits and
+  supply chain risks. You have access to file_read and
+  archival_memory_search to review documents. The supply chain audit
+  document is stored in your archival memory — use
+  archival_memory_search when asked about supply chain, dependency,
+  or audit information.
 tools:
   - file_read
   - archival_memory_search

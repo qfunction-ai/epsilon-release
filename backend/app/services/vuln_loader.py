@@ -214,6 +214,11 @@ class VulnLoader:
             canary_value=data.get("canary_value"),
             content_validation=data.get("content_validation", False),
             documents=data.get("documents", []),
+            # LLM06 token budget — the loader WHITELISTS fields (a new
+            # YAML key is silently dropped until added here; known bug
+            # class from the canary saga). Flows to agent metadata in
+            # letta_client._build_agent_payload.
+            token_budget=data.get("token_budget"),
         )
 
     def _load_code_comparison(self, vuln_dir: Path) -> CodeComparison | None:

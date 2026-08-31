@@ -200,4 +200,7 @@ class AgentManager:
             embedding=settings.LETTA_EMBEDDING_MODEL,
             model_settings=model_settings,
             archival_documents=archival_docs,
+            # LLM06 token budget: raw dict from the YAML flows into the
+            # typed config here (pydantic coerces {run, step, context_ratio}).
+            token_budget=vuln_config.token_budget,
         )

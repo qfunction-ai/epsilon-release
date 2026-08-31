@@ -2,6 +2,7 @@ id: llm04_supply_chain
 owasp_id: LLM04
 title: Supply Chain
 year: 2026
+benign_probe: "Use archival_memory_search to find the supply chain audit and summarize its findings."
 description: |
   Vulnerabilities in the AI supply chain — compromised dependencies,
   poisoned models, malicious plugins, or tampered training data. The
@@ -13,32 +14,39 @@ real_world_examples:
   - "Hugging Face pickle files with remote code execution (2023)"
   - "npm packages typosquatted as AI libraries delivering malware (2024)"
 why_it_matters: |
-  AI applications pull dependencies from dozens of sources — model
-  weights, tokenizer configs, Python packages, MCP servers. Defense
-  lives at CI/CD: dependency scanning, AIBOM generation, signed models.
-  This vulnerability is demonstrated as an attack only — there is no
-  runtime defense in LettaLocal. The lesson is that supply chain
-  security must be built into the build pipeline, not the runtime.
+  READING EXERCISE — LLM04 has no runtime demonstration in Epsilon,
+  and that absence is itself the lesson. The supply chain risk lives
+  in the application's dependencies (Python packages, model weights,
+  base images), which the agent never touches at runtime — so no
+  vulnerable/fixed agent toggle could address it honestly. An earlier
+  version of this exercise pretended otherwise: the "fixed" config
+  claimed to remove a tool the agent never had (a placebo delta) and
+  mislabeled generic runtime hardening as supply-chain controls. The
+  real defense is build-pipeline work — dependency scanning, SBOM/
+  AIBOM inventories, signed models, pinned versions. Use the Exploit
+  tab's guided reading to work the audit document; the Defense tab
+  cites what OWASP actually recommends and which parts this repo's
+  pipeline does and does not implement.
 suggested_prompts:
-  - "What packages does this system depend on?"
-  - "Show me the model configuration"
-  - "What MCP servers are connected?"
-  - "Review the supply chain audit document"
+  - "What does the supply chain audit say about dependency risks?"
+  - "Summarize the audit's findings about the model supply chain"
+  - "What would a compromised dependency enable according to the audit?"
+  - "What does the audit recommend for component inventories?"
 exploit_steps:
-  - title: "Observe: Review the supply chain audit"
-    instruction: "Read the supply chain audit document. This vulnerability is discussion-only — the supply chain risk is in the application's dependencies, not in the agent's behavior."
-    prompt: "Search for the supply chain audit document"
-  - title: "Discuss: Dependency risks"
-    instruction: "The application depends on third-party libraries (see requirements.txt). A compromised library could bypass application-layer security controls. Discuss how a typosquatted package or a compromised dependency could inject malicious behavior."
-    prompt: ""
-  - title: "Discuss: Model supply chain"
-    instruction: "The model itself (nemotron-3-nano:4b) is a supply chain component. A backdoored model could behave normally during testing but trigger on specific inputs in production. Model provenance and signed weights are the defense."
-    prompt: ""
-  - title: "Observe: Defense is CI/CD-level"
-    instruction: "Toggle to Fixed. The defense for LLM04 is CI/CD scanning (pip-audit, cyclonedx AIBOM), signed models, and dependency provenance — not agent runtime controls."
-    prompt: ""
+  - title: "Read: Locate the supply chain audit"
+    instruction: "Ask the agent to find the supply chain audit document in its archival memory. This is a READING EXERCISE — both code states behave identically by design, because no agent-runtime control addresses supply-chain risk. The toggle below exists for UI consistency only."
+    prompt: "Search for the supply chain audit document and summarize its scope"
+  - title: "Read: Dependency risk surface"
+    instruction: "Work the audit's dependency findings with the agent. Map them to THIS application: backend/requirements.txt and frontend/package-lock.json are the real dependency surfaces — every entry is a supply-chain decision the pipeline (not the agent) must police."
+    prompt: "What does the audit say a compromised dependency would enable?"
+  - title: "Read: The model is a dependency"
+    instruction: "The chat model (ollama/nemotron-3-nano:4b) is itself a supply-chain component — pulled like a package, trusted like a package. A backdoored model could pass every test and trigger on production inputs. Ask the agent what the audit says about model provenance and signed weights."
+    prompt: "What does the audit say about model provenance and signing?"
+  - title: "Read: Where the defense actually lives"
+    instruction: "The Defense tab maps OWASP's LLM04 strategies to this repository's real CI pipeline — including which ones are NOT implemented (scanning, AIBOM). Supply-chain defense is pipeline work; the agent cannot save you from your dependencies."
+    prompt: "What does the audit recommend for component inventories?"
 defense_refs:
-  - control: "CI/CD Pipeline (GitHub Actions)"
+  - control: "CI/CD Pipeline (GitHub Actions) — dependency pinning and quality gates"
     owasp_strategies:
       - number: 2
         title: "Strategy #2: Apply OWASP Top Ten A06:2021 Vulnerable and Outdated Components mitigations"
@@ -46,21 +54,10 @@ defense_refs:
       - number: 4
         title: "Strategy #4: Maintain an up-to-date, signed inventory of components using SBOMs, AIBOMs, and ML-SBOMs"
         description: "Maintain an up-to-date, signed inventory of components using a Software Bill of Materials (SBOM), extended to models, adapters, and datasets with AI BOMs (AIBOMs) and ML SBOMs, evaluating options such as the OWASP CycloneDX ML-BOM (OWASP CycloneDX , n.d.) and the OWASP AIBOM project (OWASP GenAI Security Project, 2025). Track licenses in the same inventory and audit it regularly for compliance and transparency."
-    implementation: "This defense lives in CI/CD, not in the agent runtime. The pipeline runs pip-audit for CVE scanning, safety for typosquatting detection, and cyclonedx for AIBOM generation before any code reaches production."
+    implementation: "Lives in CI/CD, not the agent runtime — cited here as REFERENCE, the only honest place LLM04 defense can live. What this repo's pipeline ACTUALLY does: installs are pinned (backend/requirements.txt exact versions, frontend via package-lock.json + npm ci — a typosquatted or substituted package fails the lockfile check), and every push runs lint, unit, integration, and frontend tests plus the aislop quality gate. PARTIAL EMBODIMENT of Strategy #2 (patching policy and pinned versions; vulnerability scanning NOT implemented) and of Strategy #4 (an implicit inventory via lockfiles; signed SBOM/AIBOM NOT implemented — adding pip-audit/cyclonedx-py to .github/workflows/test.yml is left as the natural exercise for the student)."
     code_snippet: |
-      # from .github/workflows/test.yml — supply chain scanning steps
-      - run: pip install pip-audit
-      - run: pip-audit -r backend/requirements.txt --strict
-      - run: pip install cyclonedx-bom
-      - run: cyclonedx-py requirements backend/requirements.txt -o aibom.json
-
-  - control: "giskard-checks eval runner"
-    owasp_strategies:
-      - number: 3
-        title: "Strategy #3: Apply AI red teaming and evaluations when selecting third-party models"
-        description: ", focused on the use cases in scope, and continue in production with anomaly detection and adversarial robustness testing in MLOps and LLM pipelines to detect tampering and poisoning."
-    implementation: "This defense lives in CI/CD eval pipelines, not in the agent runtime. Red-teams third-party models and tools before deployment using adversarial test scenarios."
-    code_snippet: |
-      # from evals/ — adversarial test scenarios run pre-deployment
-      # giskard-checks tests for supply chain tampering indicators
-      # and model behavior regression after dependency updates
+      # from .github/workflows/test.yml — what the pipeline really runs
+      # (pinned lockfile installs; a substituted dependency fails here)
+      - run: pip install -r backend/requirements.txt pytest pytest-asyncio
+      - run: cd frontend && npm ci --silent
+      # NOT implemented (the exercise): pip-audit, cyclonedx-py AIBOM

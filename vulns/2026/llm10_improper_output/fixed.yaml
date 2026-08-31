@@ -17,6 +17,26 @@ tools:
   - archival_memory_search
 
 policy:
+  # Allow-list (the 8th deny-everything-without-allows instance — found
+  # by the INV-10 benign-probe invariant on its first run, 2026-08-31;
+  # every prior "pass" of llm10 fixed was coherent-looking refusal text
+  # over a fully locked-down agent). Retrieval and file reading are the
+  # legitimate surface; defaults stay deny for everything else.
+  rules:
+    - name: allow-fileread
+      condition:
+        field: tool_name
+        operator: eq
+        value: file_read
+      action: allow
+      priority: 10
+    - name: allow-archival-retrieval
+      condition:
+        field: tool_name
+        operator: eq
+        value: archival_memory_search
+      action: allow
+      priority: 10
   defaults:
     action: deny
   max_calls_per_tool:
