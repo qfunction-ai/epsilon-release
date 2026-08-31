@@ -97,7 +97,24 @@ export function useChat() {
     const finalSecurityWarnings = [...securityWarningsRef.current]
     const wasCancelled = stopReasonRef.current === 'cancelled'
 
-    // Finalize the assistant message with any accumulated tool calls / warnings
+    finalizeAssistant(finalContent, finalReasoning, finalToolCalls, finalSecurityWarnings, wasCancelled)
+  }, [])
+
+  /**
+   * Flush stream buffers into the final assistant message and end the
+   * streaming state. Shared by handleCompleted (normal stream end) and
+   * abortChat (local cancel — the epoch guard makes late stream
+   * callbacks no-ops, so the ABORT PATH itself must finalize; before
+   * this, Stop left `streaming` stuck true and the Send button never
+   * returned — caught by the stop-mid-stream Playwright spec).
+   */
+  const finalizeAssistant = useCallback((
+    finalContent: string,
+    finalReasoning: string,
+    finalToolCalls: ChatMessage['toolCalls'],
+    finalSecurityWarnings: ChatMessage['securityWarnings'],
+    wasCancelled: boolean,
+  ) => {
     setMessages((prev) => {
       const updated = [...prev]
       const last = updated[updated.length - 1]
@@ -117,10 +134,10 @@ export function useChat() {
         if (finalReasoning) {
           finalized.reasoning = finalReasoning
         }
-        if (finalToolCalls.length > 0) {
+        if (finalToolCalls && finalToolCalls.length > 0) {
           finalized.toolCalls = finalToolCalls
         }
-        if (finalSecurityWarnings.length > 0) {
+        if (finalSecurityWarnings && finalSecurityWarnings.length > 0) {
           finalized.securityWarnings = finalSecurityWarnings
         }
         updated[updated.length - 1] = finalized
@@ -161,11 +178,23 @@ export function useChat() {
     onSecurityEvent: handleSecurityEvent,
   })
 
-  /** Abort an in-flight stream. Late stream callbacks become no-ops. */
+  /** Abort an in-flight stream. Late stream callbacks become no-ops.
+   * The abort path finalizes the UI itself (cancelled marker, buffers
+   * flushed, streaming cleared) — the epoch guard would eat the
+   * stream's own completion callback, leaving the chat stuck in
+   * streaming mode (the bug the stop-mid-stream spec caught). */
   const abortChat = useCallback(() => {
+    stopReasonRef.current = 'cancelled'
+    finalizeAssistant(
+      contentBufferRef.current,
+      reasoningBufferRef.current,
+      [...toolCallsRef.current],
+      [...securityWarningsRef.current],
+      true,
+    )
     cancelledRef.current = true
     cancelStream()
-  }, [cancelStream])
+  }, [cancelStream, finalizeAssistant])
 
   /** Empty the transcript and clear the chat error state. */
   const clearMessages = useCallback(() => {

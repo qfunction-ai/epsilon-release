@@ -278,3 +278,44 @@ def test_oversized_message_422(app_client):
         "message": "x" * 20_001,
     })
     assert r.status_code == 422
+
+
+def test_stop_with_session_aborts(app_client):
+    """POST /agent/stop with an existing session aborts the agent's
+    active runs (stub records the call) and returns stopped: true."""
+    c, stub = app_client.client, app_client.stub
+    h = _auth(c)
+    r = c.post("/agent/run", headers=h, json={
+        "vuln_id": "llm03_excessive_agency", "year": 2026,
+        "code_state": "vulnerable", "message": "seed session",
+    })
+    assert r.status_code == 200
+    agent_id = r.json()["agent_id"]
+
+    r = c.post("/agent/stop", headers=h, json={
+        "year": 2026, "vuln_id": "llm03_excessive_agency",
+    })
+    assert r.status_code == 200
+    assert r.json()["stopped"] is True
+    # the abort targeted THIS session's agent
+    aborts = [call for call in stub.calls if call[0] == "abort_active_runs"]
+    assert aborts and aborts[-1][1] == agent_id
+
+
+def test_stop_without_session_idempotent(app_client):
+    """No session -> nothing to stop -> {stopped: false}, no abort."""
+    c, stub = app_client.client, app_client.stub
+    h = _auth(c)
+    r = c.post("/agent/stop", headers=h, json={
+        "year": 2026, "vuln_id": "llm09_vector_embedding",
+    })
+    assert r.status_code == 200
+    assert r.json()["stopped"] is False
+    assert not any(call[0] == "abort_active_runs" for call in stub.calls)
+
+
+def test_stop_requires_auth(app_client):
+    r = app_client.client.post("/agent/stop", json={
+        "year": 2026, "vuln_id": "llm01_prompt_injection",
+    })
+    assert r.status_code == 401

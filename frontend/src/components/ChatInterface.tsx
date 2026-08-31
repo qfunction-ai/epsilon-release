@@ -7,9 +7,10 @@ interface ChatInterfaceProps {
   onSend: (text: string) => void
   codeState: CodeState
   onReset?: () => void
+  onAbort?: () => void
 }
 
-export function ChatInterface({ messages, streaming, onSend, codeState, onReset }: ChatInterfaceProps) {
+export function ChatInterface({ messages, streaming, onSend, codeState, onReset, onAbort }: ChatInterfaceProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -204,13 +205,24 @@ export function ChatInterface({ messages, streaming, onSend, codeState, onReset 
             maxHeight: '120px',
           }}
         />
-        <button
-          className="btn btn-primary"
-          onClick={handleSend}
-          disabled={streaming || !inputValue.trim()}
-        >
-          Send
-        </button>
+        {streaming ? (
+          <button
+            className="btn btn-primary"
+            onClick={() => onAbort?.()}
+            disabled={!onAbort}
+            title="Stop generation"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            className="btn btn-primary"
+            onClick={handleSend}
+            disabled={streaming || !inputValue.trim()}
+          >
+            Send
+          </button>
+        )}
       </div>
     </div>
   )
