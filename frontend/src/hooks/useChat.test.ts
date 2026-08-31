@@ -169,13 +169,22 @@ describe('useChat', () => {
       await result.current.sendMessage(2026, 'llm01', 'vulnerable', 'test')
     })
 
-    // Capture messages before abort
-    const messagesBeforeAbort = [...result.current.messages]
-
-    // Abort the stream
+    // Abort the stream — NEW CONTRACT: the abort path finalizes the
+    // UI itself (cancelled marker, streaming cleared); the epoch guard
+    // would eat the stream's own completion callback (the stuck-
+    // streaming bug the stop-mid-stream spec caught).
     act(() => {
       result.current.abortChat()
     })
+
+    // The assistant placeholder is finalized as cancelled
+    const msgs = result.current.messages
+    const last = msgs[msgs.length - 1]
+    expect(last.role).toBe('assistant')
+    expect(last.cancelled).toBe(true)
+    expect(last.content).toBe('Generation cancelled.')
+    // Streaming ended — the Send button returns
+    expect(result.current.streaming).toBe(false)
 
     // Simulate late content arriving after abort
     act(() => {
@@ -187,8 +196,9 @@ describe('useChat', () => {
       capturedCallbacks?.onCompleted()
     })
 
-    // Messages should be unchanged — late callbacks are no-ops
-    expect(result.current.messages).toEqual(messagesBeforeAbort)
+    // Messages unchanged by the LATE callbacks — they are no-ops
+    // (the abort finalize above is the only mutation)
+    expect(result.current.messages).toEqual(msgs)
   })
 
   it('buffer resets on send: turn N+1 does not inherit turn N content', async () => {

@@ -81,6 +81,51 @@ class ResetResponse(BaseModel):
     reset: bool
 
 
+class StopResponse(BaseModel):
+    """Response from stopping the calling user's active run."""
+    stopped: bool
+
+
+@router.post("/stop", response_model=StopResponse)
+async def stop_run(
+    body: ResetRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Stop the CALLING user's active run for one vulnerability.
+
+    Deterministic abort (Stop button): fires abort_active_runs on the
+    session's agent directly — independent of SSE disconnect
+    detection (which a silent generation only surfaces at the next
+    keepalive). Best-effort, never raises: a lost abort degrades to
+    the existing timeout containment. Idempotent: no session or no
+    agent means nothing to stop ({stopped: false}). The single-flight
+    lock is deliberately NOT touched here — the stream's generator
+    finally owns release (abort ends the run -> stream terminates ->
+    finally fires). Body reuses ResetRequest's shape (year/vuln_id);
+    the session lookup is scoped to the calling user.
+    """
+    result = await db.execute(
+        select(SessionModel).where(
+            SessionModel.user_id == user.id,
+            SessionModel.vulnerability_id == f"{body.year}_{body.vuln_id}",
+        )
+    )
+    session = result.scalar_one_or_none()
+    if session is None or not session.agent_id:
+        return StopResponse(stopped=False)
+
+    letta_client = _get_letta_client(request)
+    try:
+        await letta_client.abort_active_runs(session.agent_id)
+    except Exception as exc:
+        # Never raise from a stop: the disconnect-abort chain and the
+        # timeout containment both still apply.
+        logger.warning(f"Stop endpoint abort failed (continuing): {exc}")
+    return StopResponse(stopped=True)
+
+
 @router.delete("/session", response_model=ResetResponse)
 async def reset_session(
     body: ResetRequest,
