@@ -40,6 +40,20 @@ policy:
 canary: true
 canary_value: CANARY-eps-06-cons-2026
 content_validation: true
+# LLM06 token budget — wired via agent metadata (token_budget_run /
+# token_budget_step) to LettaLocal's TokenBudget (agents/token_budget.py,
+# enforced in the v3 agent path after each LLM call). The engine stops
+# the run with max_tokens_exceeded -> failed once cumulative run tokens
+# exceed `run` (or a single step exceeds `step`). Normal single-answer
+# turns (~2-5k tokens) pass; the burn/loop attack accumulates context
+# each step and trips the budget mid-run. Calibrated live 2026-08-31:
+# benign single-answer turns use ~2.4-3.6k total tokens; the 12-topic
+# burn chip accumulates ~17.8k across 6 steps (context grows with each
+# retrieval) and trips run=12000 about two-thirds through. step=8000 is
+# defense in depth (no single demo step exceeds it).
+token_budget:
+  run: 12000
+  step: 8000
 
 documents:
   - knowledge_base.txt

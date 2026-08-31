@@ -9,6 +9,7 @@
 # access control. Canary tokens detect exfiltration but cannot prevent it —
 # the content is already in the context window when detected.
 
+benign_probe: "Use archival_memory_search to list and summarize the documents in your archival memory."
 description: >-
   The LLM's system prompt, hidden memory blocks, or internal instructions are
   exposed to the user. Attackers trick the agent into revealing its system
@@ -56,7 +57,7 @@ defense_refs:
       - number: 1
         title: "Strategy #1: Do Not Put Sensitive Data in Hidden Context"
         description: "Do not embed credentials, secrets, or security-critical configuration directly in the system prompts or hidden context. Assume all context available to the LLM could also be available to users. Instead, externalize such information to the systems that the model does not directly access and avoid letting the model handle sensitive data itself."
-    implementation: "The most direct fix in this app: the vulnerable prompt embeds SECRET-KEY-abc123 in hidden context; the fixed prompt removes it entirely and keeps only the canary token. Secrets never belong in the prompt — assume everything in context can reach a user."
+    implementation: "The most direct fix in this app: the vulnerable prompt embeds SECRET-KEY-abc123 in hidden context; the fixed prompt removes it entirely and keeps only the canary token. Secrets never belong in the prompt — assume everything in context can reach a user. HONEST ANNOTATION (external review 2026-08-31): the vulnerable prompt also carried BEHAVIORAL logic (tier priorities, 'recommend premium first'); the fixed prompt DELETES that logic rather than RELOCATING it to a deterministic layer — Strategy #2/#3's full form would move behavioral/authorization control outside the model (e.g., policy rules enforcing tiering on tool calls). Deleting is safe here (the logic was a demonstration prop); relocating is the production pattern. The demonstrated control remains secret-REMOVAL (Strategy #1) — the strongest move for anything secret."
     code_snippet: |
       # vulnerable.yaml: SECRET-KEY-abc123 embedded in the prompt (leakable)
       # fixed.yaml: secret removed; only CANARY-eps-08-hidden-2026 remains

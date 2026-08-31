@@ -64,6 +64,32 @@ class ModelSettings(BaseModel):
     )
 
 
+class TokenBudgetConfig(BaseModel):
+    """Per-agent token budget (LLM06 unbounded consumption).
+
+    Flows to LettaLocal via agent METADATA keys (token_budget_run /
+    token_budget_step / token_budget_context_ratio) — metadata is a
+    DECLARED field on CreateAgent/UpdateAgent schemas, so unlike
+    loop_detection this needs no LettaLocal API change. The engine's
+    TokenBudget (agents/token_budget.py, wired in the v3 agent path)
+    enforces after each LLM call; an exceeded budget stops the run
+    with max_tokens_exceeded -> RunStatus.failed.
+    """
+
+    run: int | None = Field(
+        default=None,
+        description="Max cumulative tokens per run (token_budget_run).",
+    )
+    step: int | None = Field(
+        default=None,
+        description="Max tokens for a single step (token_budget_step).",
+    )
+    context_ratio: float | None = Field(
+        default=None,
+        description="Fraction of the context window allowed (token_budget_context_ratio; engine default 0.7).",
+    )
+
+
 class AgentConfig(BaseModel):
     """Full configuration for a defense agent."""
 
@@ -110,4 +136,8 @@ class AgentConfig(BaseModel):
     archival_documents: list[tuple[str, str]] = Field(
         default_factory=list,
         description="Pre-loaded (filename, content) pairs for archival memory insertion.",
+    )
+    token_budget: TokenBudgetConfig | None = Field(
+        default=None,
+        description="Per-agent token budget (LLM06); None = unbounded.",
     )

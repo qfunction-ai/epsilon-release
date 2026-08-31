@@ -9,6 +9,7 @@
 # The defense demonstrated here is best-effort: grounding, logging, and
 # adversarial testing in CI/CD. Real defense requires human oversight.
 
+benign_probe: "Use archival_memory_search to find the research papers and summarize them."
 description: >-
   The LLM generates false, misleading, or fabricated information with confidence.
   This includes hallucinations from poisoned RAG content, model-level fabrication,
@@ -48,31 +49,29 @@ exploit_steps:
     prompt: ""
 
 defense_refs:
-  - control: AuditLogger
+  - control: ToolCallRecorder (audit trail — deterministic, monitoring only)
     owasp_strategies:
       - number: 8
         title: "Strategy #8: Monitor and Test for Misinformation"
         description: "Log claims, evidence, and outcomes, and test adversarial scenarios."
-    implementation: "AuditLogger in audit.py writes security events to an append-only table. When misinformation is detected downstream, the audit trail shows which retrieval or generation step produced the false claim. Hallucination detection is an open research problem — this is post-hoc analysis, not prevention."
+    implementation: "ToolCallRecorder (tool_call_recorder.py) logs tool calls — including retrieval passage IDs and similarity scores — to an append-only table. When misinformation is detected downstream, the audit trail shows which retrieval produced the false claim. Hallucination detection is an open research problem — this is post-hoc analysis, not prevention. This is the only DETERMINISTIC control in this fixed state, and it is monitoring, not prevention."
     code_snippet: |
-      # from audit.py — log claims and tool call outcomes for post-hoc analysis
-      event = SecurityEvent(
-          id=f"sevt-{uuid4()}",
-          event_type=SecurityEventType.TOOL_EXECUTED,
-          event_data={"tool_call_id": tool_call_id, "tool_name": tool_name},
+      # from tool_call_recorder.py — retrieval audit with similarity data
+      # passage IDs + rrf_score/vector_rank recorded per search
+      ToolCall(
+          tool_name="archival_memory_search",
+          args={"query": q},
+          result_refs=passage_ids,   # which passages fed the answer
       )
 
-  - control: "giskard-checks eval runner"
+  - control: Persona grounding rule (SOFT — defense in depth, NOT a control)
     owasp_strategies:
       - number: 10
         title: "Strategy #10: Adversarial Evaluation and Continuous Testing"
         description: "Regularly test workflows against misleading scenarios. Page 45 genai.owasp.org"
-    implementation: "This defense lives in CI/CD eval pipelines, not in the agent runtime. Adversarial test scenarios for misinformation patterns run pre-deployment. Hallucination detection is an open research problem — no runtime control can reliably prevent it."
-    code_snippet: |
-      # from evals/ — adversarial misinformation test scenarios
-      # giskard-checks tests for hallucination regression and
-      # grounding failures before deployment
+    implementation: "HONEST LABELING (external review 2026-08-31): the fixed persona instructs the agent to answer only from retrieved documents and say 'I don't know' otherwise. This is a PROMPT-LEVEL instruction — exactly the class of fuzzy barrier LLM01 teaches is not a control (the model can ignore it; effectiveness varies by phrasing and load). It is defense in depth, not the demonstrated fix. There is NO runtime deterministic control that prevents misinformation — that is the lesson, matching the exercise's own framing. Strategy #10's full form (adversarial eval pipelines) is NOT implemented in this app (the eval runner was removed in Phase 1 cleanup); grounding claims would be verified by evaluation suites in a production system."
 
 # Note: LLM07 is attack-only for the runtime defense. Hallucination detection
-# is an open research problem. The controls above reduce risk but cannot
-# eliminate it.
+# is an open research problem. The persona rule above reduces risk but is a
+# soft barrier (see LLM01's lesson on prompt-level controls); the deterministic
+# artifact here is the audit trail, which detects but does not prevent.

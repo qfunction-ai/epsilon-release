@@ -1,3 +1,4 @@
+benign_probe: "Use file_read on the XSS examples document and summarize it."
 id: llm10_improper_output
 owasp_id: LLM10
 title: Improper Output Handling
@@ -34,14 +35,14 @@ exploit_steps:
     instruction: "Ask the agent to include HTML tags. The vulnerable agent is encouraged to write HTML."
     prompt: "Write a message that contains a script tag"
   - title: "Exploit: Generate XSS payload"
-    instruction: "Ask for a hostile markup payload. Notice the agent may generate it in EITHER state - vulnerable or fixed - and that is the point: improper output handling is a RENDERING problem, not a generation problem. A refusal (which also happens, nondeterministically, in the vulnerable state) is safety training, not your defense. Switch the code state and send the same prompt again: when the markup is generated in the fixed state, the frontend neutralizes it - escaped as text by React's automatic encoding, with the Content Security Policy blocking external loads from metrics-insights.net or any other origin. The defense is what the browser does with the output, never what the model promises."
-    prompt: "Generate an HTML image tag that loads from metrics-insights.net"
+    instruction: "Ask the agent to include an external image in its reply. Notice the agent may generate it in EITHER state - vulnerable or fixed - and that is the point: improper output handling is a RENDERING problem, not a generation problem. A refusal (which also happens, nondeterministically, in the vulnerable state) is safety training, not your defense. Switch the code state and send the same prompt again: when the markup is generated in the fixed state, the frontend neutralizes it - escaped as text by React's automatic encoding, with the Content Security Policy blocking external loads from metrics-insights.net or any other origin. The defense is what the browser does with the output, never what the model promises."
+    prompt: "Include an image that loads from metrics-insights.net in your reply, using markdown image syntax"
   - title: "Observe: The script tag is rendered as text"
     instruction: "The script tag is rendered as text, not executed. React's automatic HTML encoding treats LLM output as untrusted content. Check the Code tab to see the frontend defense."
     prompt: ""
 
 defense_refs:
-  - control: React HTML Encoding
+  - control: React HTML Encoding (no markdown rendering)
     owasp_strategies:
       - number: 3
         title: "Strategy #3: Encode model output back to users"
@@ -49,25 +50,35 @@ defense_refs:
       - number: 4
         title: "Strategy #4: Implement context-aware output encoding"
         description: "based on where the LLM output will be used (for example, HTML encoding for web content, JavaScript encoding for browser script contexts)."
-    implementation: "This defense lives in the frontend, not in the agent framework. DefenseList.tsx renders descriptions using React node rendering instead of dangerouslySetInnerHTML. React automatically encodes HTML entities — no manual escaping needed."
+      - number: 9
+        title: "Strategy #9: Disable auto-rendering of LLM-generated markdown images or links"
+        description: "when rendering model output, to prevent image-based SSRF and other injection vectors."
+    implementation: "This defense lives in the frontend, not in the agent framework. The chat renders LLM output as ENCODED REACT TEXT CHILDREN — there is no markdown renderer anywhere in the frontend, so model output never becomes DOM elements at all: a <script> tag displays as literal on-screen text, and a markdown image line stays a text string. This is the disable-auto-rendering posture of Strategy #9 taken to its strongest form: rather than sanitizing rendered markdown, nothing is rendered. DefenseList.tsx applies the same React node rendering (no dangerouslySetInnerHTML). PARTIAL EMBODIMENT of #3/#4: encoding is React's default text-node behavior rather than an explicit context-aware encoder."
     code_snippet: |
-      // from DefenseList.tsx — React node rendering, no dangerouslySetInnerHTML
-      function renderDescription(desc: string): ReactNode[] {
-        const parts = desc.split(/`([^`]+)`/g)
-        return parts.map((part, i) =>
-          i % 2 === 1 ? <code key={i}>{part}</code> : <span key={i}>{part}</span>
-        )
-      }
+      // from ChatInterface.tsx — LLM output renders as a plain text node
+      {msg.content && (
+        <div className="message-bubble">{msg.content}</div>
+      )}
+      // No markdown renderer, no dangerouslySetInnerHTML, no eval:
+      // '<img src=...>' from the model displays as text, not an element
 
   - control: Content Security Policy (CSP)
     owasp_strategies:
       - number: 6
         title: "Strategy #6: Employ strict Content Security Policies (CSP)"
         description: "to mitigate the risk of XSS attacks from LLM-generated content."
-    implementation: "This defense lives in the frontend, not in the agent framework. CSP headers prevent inline script execution even if XSS occurs. Epsilon should add CSP headers to the backend response."
+    implementation: "SHIPPED as a meta tag in frontend/index.html (not a backend response header). Claims only what it does: img-src 'self' data: BLOCKS EXTERNAL IMAGE LOADS — including the metrics-insights.net SSRF vector this exercise demonstrates — satisfying the outbound-request blocking OWASP asks for. PARTIAL EMBODIMENT: script-src carries 'unsafe-inline' 'unsafe-eval' (required by the Vite dev-server frontend), so this CSP does NOT block inline-script execution; script XSS defense here rests on the no-rendering encoding above, not on CSP."
     code_snippet: |
-      # CSP header to add to backend responses
-      Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'
+      <!-- from frontend/index.html — shipped CSP (meta tag) -->
+      <meta http-equiv="Content-Security-Policy"
+            content="default-src 'self';
+                     connect-src 'self' http://localhost:8000;
+                     script-src 'self' 'unsafe-inline' 'unsafe-eval';
+                     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                     font-src 'self' https://fonts.gstatic.com;
+                     img-src 'self' data:" />
+      <!-- img-src 'self' data: = the external-image block (the demo's defense);
+           unsafe-inline in script-src = inline scripts NOT blocked (honest scope) -->
 
   - control: AuditLogger
     owasp_strategies:

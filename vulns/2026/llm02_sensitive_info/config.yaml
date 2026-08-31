@@ -2,6 +2,7 @@ id: llm02_sensitive_info
 owasp_id: LLM02
 title: Sensitive Information Disclosure
 year: 2026
+benign_probe: "Use archival_memory_search to find the employee benefits guide and summarize it."
 description: |
   The LLM leaks sensitive data from its training corpus, system
   prompt, RAG content, or connected tools. Includes PII exposure,
@@ -54,13 +55,16 @@ defense_refs:
 
   - control: PolicyChecker (allow-list + path rule)
     owasp_strategies:
+      - number: 1
+        title: "Tier 1, Strategy #1: Govern corpora"
+        description: "Govern corpora: provenance, classification, and deduplication across near-duplicates, transliterations, and format variants. Scrub PII at ingest. Deduplication reduces but does not eliminate memorization."
       - number: 3
         title: "Tier 1, Strategy #3: Authorize before retrieval"
         description: "enforce document- and chunk-level authorization inside the index query, not at the application layer after retrieval. Isolate per-tenant indexes for high-sensitivity workloads."
-    implementation: "The fixed policy is an allow-list: archival_memory_search and file_read are explicitly allowed (retrieval works — the student watches the fixed agent search and find only public data), confidential file paths are denied (priority 90 overrides the allow), execute_code is denied (exfiltration path), and everything else defaults to deny. The authorization happens at the corpus: hr_confidential.txt is excluded from the fixed-state RAG corpus entirely — chunk-level authorization at ingest, exactly the strategy's intent."
+    implementation: "The demonstrated control is corpus GOVERNANCE (Tier 1 #1), not retrieval-time authorization: hr_confidential.txt is excluded from the fixed-state RAG corpus entirely — the confidential data never enters the index the agent can query, which is the strongest single-tenant form of 'scrub sensitive data at ingest'. The fixed policy is an allow-list: archival_memory_search and file_read are explicitly allowed (retrieval works — the student watches the fixed agent search and find only public data), confidential file paths are denied (priority 90 overrides the allow), execute_code is denied (exfiltration path), and everything else defaults to deny. NOT IMPLEMENTED (Strategy #3's full form): per-user/chunk-level authorization INSIDE the index query — one shared index where different users retrieve different chunks. That requires multi-tenant retrieval infrastructure this single-user teaching app does not model; the corpus exclusion teaches the prerequisite lesson: do not put data into a shared index that some users must never see."
     code_snippet: |
       # from fixed.yaml — allow-list posture: retrieval works,
-      # authorization lives at the corpus (confidential excluded)
+      # governance lives at the corpus (confidential excluded at ingest)
       rules:
         - name: allow-archival-retrieval
           condition: {field: tool_name, operator: eq, value: archival_memory_search}

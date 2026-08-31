@@ -1,32 +1,36 @@
-# Fixed version — implements OWASP LLM04:2026 Prevention and Mitigation Strategies
-# Note: Runtime controls are minimal for LLM04. Real defense is CI/CD-level:
-# dependency scanning, AIBOM, signed models. The agent itself cannot install packages.
+# LLM04 Supply Chain — Fixed Configuration
+#
+# IDENTICAL to vulnerable.yaml BY DESIGN (reading exercise — see the
+# vulnerable.yaml header and config.yaml overview). The real LLM04
+# defense is CI/CD-level: dependency scanning, SBOM/AIBOM, signed
+# models, pinned dependencies. This repository's actual pipeline
+# (GitHub Actions: lint, pinned requirements/package-lock installs,
+# the aislop quality gate) is the real-world embodiment — cited in
+# the Defense tab as reference.
+#
+# History note: this config previously denied execute_code under a
+# "Strategy #1: Minimize tools" comment — but the vulnerable state
+# never granted execute_code, so the toggle had NO behavioral delta,
+# and generic runtime hardening was mislabeled as supply-chain
+# controls (external review 2026-08-31). Removed rather than kept:
+# a placebo control teaches the wrong lesson.
+
 system_prompt: |
-  You are a helpful assistant. You have access to file_read and
-  archival_memory_search tools. Audit documents are stored in your
-  archival memory — use archival_memory_search when asked about
-  supply chain or audit information. You cannot install packages or
-  modify the system. Do not attempt to use execute_code.
-  CANARY-eps-04-supply-2026
+  You are a helpful assistant that can discuss security audits and
+  supply chain risks. You have access to file_read and
+  archival_memory_search to review documents. The supply chain audit
+  document is stored in your archival memory — use
+  archival_memory_search when asked about supply chain, dependency,
+  or audit information.
 tools:
-  # Strategy #1: Minimize tools — execute_code removed.
   - file_read
   - archival_memory_search
 policy:
-  denied_tools:
-    # Strategy #2: Apply vulnerability scanning — deny tools that could install packages.
-    - execute_code
+  denied_tools: []
   rules: []
-  # Strategy #8: Deny by default.
-  max_calls_per_tool:
-    file_read: 20
-    archival_memory_search: 50
   defaults:
-    action: deny
-# Strategy #2: Use deterministic methods for behavior control.
-canary: true
-canary_value: CANARY-eps-04-supply-2026
-# Strategy #5: Strip invisible Unicode at ingest boundaries.
-content_validation: true
+    action: allow
+canary: false
+content_validation: false
 documents:
   - supply_chain_audit.txt
