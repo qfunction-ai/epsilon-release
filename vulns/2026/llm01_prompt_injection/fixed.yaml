@@ -20,8 +20,10 @@ system_prompt: |
 # detect this token in tool arguments and block the action.
 canary: true
 canary_value: CANARY-eps-01-inj-2026
-# Content validation scans all RAG inserts and tool outputs for known
-# injection patterns, including hidden Unicode characters.
+# Content validation scans tool outputs (including retrieval results) for
+# known injection patterns, including hidden Unicode characters. A detected
+# pattern appends [SECURITY WARNING] to the tool return (detection, not
+# blocking) and, since v0.16.32, surfaces a security flag mid-stream.
 content_validation: true
 
 tools:
@@ -65,7 +67,8 @@ documents:
 
 # DEFENSE SUMMARY:
 #   - Canary detection — catches system prompt exfiltration in tool args
-#   - Content validation — blocks poisoned RAG content
+#   - Content validation — flags injected content in tool outputs
+#     (detection + warning-append, not blocking)
 #   - Policy: deny-by-default — blocks unauthorized tool calls
 #   - execute_code denied — prevents code-based exfiltration
 #   - Rate limiting — limits blast radius

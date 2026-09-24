@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 from fastapi import HTTPException, status
 
+from app.config import get_settings
 from app.schemas.agent_config import AgentConfig
 
 logger = logging.getLogger(__name__)
@@ -47,11 +48,18 @@ class LettaClient:
         self.base_url = base_url.rstrip("/")
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
-            # read=600: covers every HEALTHY turn class observed; the
-            # 15-min known-hang turns are the test suite's own FAIL
-            # class (LLM09_503_INVESTIGATION.md). Note: suite runs are
-            # still bounded by the SUITE's httpx client (read=300).
-            timeout=httpx.Timeout(connect=10.0, read=600.0, write=10.0, pool=5.0),
+            # read timeout is env-configurable (LETTA_READ_TIMEOUT_S,
+            # default 600s): covers every HEALTHY turn class observed
+            # locally; CI CPU turns legitimately exceed 600s (llm06
+            # grind 503'd at 604s on 2026-08-31 while passing locally
+            # in <60s) — the CI compose raises it to 1200. The 15-min
+            # known-hang turns are the test suite's own FAIL class.
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=get_settings().LETTA_READ_TIMEOUT_S,
+                write=10.0,
+                pool=5.0,
+            ),
             follow_redirects=True,
             headers={
                 "Content-Type": "application/json",
@@ -138,6 +146,14 @@ class LettaClient:
                     {
                         "label": "__canary__",
                         "value": config.canary_value,
+                        # read_only: BlockGuard (three-layer enforcement) only
+                        # guards blocks flagged read_only. Without this flag
+                        # the schema defaults to False and the agent could
+                        # mutate/delete its own canary via core_memory_replace
+                        # — the documented LLM08 defense was silently inert
+                        # (claim audit F1, verified live 2026-09-24:
+                        # __canary__ read_only=False on running agents).
+                        "read_only": True,
                     }
                 )
             else:
@@ -149,13 +165,27 @@ class LettaClient:
                     "canary=true but canary_value not set — random canary will be generated"
                 )
 
-        # Content validation flag — sent via metadata dict.
-        # Top-level field is silently dropped by Pydantic extra="ignore".
-        # metadata IS persisted and read by init_security() in LettaLocal.
+        # METADATA — ONE composed dict, never a replacement. Multiple
+        # controls flow through agent metadata (Delta review
+        # metadata-merge trap): enable_content_validation (top-level
+        # field is silently dropped by extra="ignore"; metadata IS
+        # persisted and read by init_security()) and the LLM06 token
+        # budget keys (read by LettaLocal's create_token_budget from
+        # agent_state.metadata). A second `payload["metadata"] = {...}`
+        # assignment would clobber earlier keys.
+        metadata: dict[str, Any] = {}
         if config.content_validation:
-            if "metadata" not in payload:
-                payload["metadata"] = {}
-            payload["metadata"]["enable_content_validation"] = True
+            metadata["enable_content_validation"] = True
+        if config.token_budget is not None:
+            tb = config.token_budget
+            if tb.run is not None:
+                metadata["token_budget_run"] = tb.run
+            if tb.step is not None:
+                metadata["token_budget_step"] = tb.step
+            if tb.context_ratio is not None:
+                metadata["token_budget_context_ratio"] = tb.context_ratio
+        if metadata:
+            payload["metadata"] = metadata
 
         return payload
 
@@ -509,12 +539,32 @@ class LettaClient:
             self._handle_error(exc, f"update_persona_block({agent_id})")
             raise
 
-        # 2. Update metadata (content validation flag) via agent PATCH
+        # 2. Update metadata via agent PATCH — ONE composed dict
+        # (metadata-merge trap, Delta review): a bare
+        # {"enable_content_validation": True} replacement would wipe
+        # token_budget_* keys on toggle. Metadata keys NOT set here
+        # (e.g. clearing the budget when toggling to vulnerable)
+        # require explicit None handling below — the engine treats
+        # missing keys as unbounded, and LettaLocal's PATCH merges
+        # at the field level, so an explicit null clears a key.
         agent_payload: dict[str, Any] = {
             "model_settings": config.model_settings.model_dump(),
         }
-        if config.content_validation:
-            agent_payload["metadata"] = {"enable_content_validation": True}
+        metadata: dict[str, Any] = {
+            "enable_content_validation": bool(config.content_validation),
+        }
+        if config.token_budget is not None:
+            tb = config.token_budget
+            metadata["token_budget_run"] = tb.run
+            metadata["token_budget_step"] = tb.step
+            metadata["token_budget_context_ratio"] = tb.context_ratio
+        else:
+            # Explicitly clear budget keys when the target state is
+            # unbounded (toggle fixed -> vulnerable).
+            metadata["token_budget_run"] = None
+            metadata["token_budget_step"] = None
+            metadata["token_budget_context_ratio"] = None
+        agent_payload["metadata"] = metadata
 
         try:
             resp = await self._client.patch(

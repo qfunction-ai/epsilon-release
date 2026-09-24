@@ -51,8 +51,8 @@ defense_refs:
         title: "Strategy #4: Implement context-aware output encoding"
         description: "based on where the LLM output will be used (for example, HTML encoding for web content, JavaScript encoding for browser script contexts)."
       - number: 9
-        title: "Strategy #9: Disable auto-rendering of LLM-generated markdown images or links"
-        description: "when rendering model output, to prevent image-based SSRF and other injection vectors."
+        title: "Strategy #9: In client renderers (chat UIs, IDEs, email clients, mobile apps), prevent model output from triggering automatic outbound requests"
+        description: "to attacker-controlled endpoints — this includes auto-rendered markdown images and links (image-based SSRF and other injection vectors)."
     implementation: "This defense lives in the frontend, not in the agent framework. The chat renders LLM output as ENCODED REACT TEXT CHILDREN — there is no markdown renderer anywhere in the frontend, so model output never becomes DOM elements at all: a <script> tag displays as literal on-screen text, and a markdown image line stays a text string. This is the disable-auto-rendering posture of Strategy #9 taken to its strongest form: rather than sanitizing rendered markdown, nothing is rendered. DefenseList.tsx applies the same React node rendering (no dangerouslySetInnerHTML). PARTIAL EMBODIMENT of #3/#4: encoding is React's default text-node behavior rather than an explicit context-aware encoder."
     code_snippet: |
       // from ChatInterface.tsx — LLM output renders as a plain text node

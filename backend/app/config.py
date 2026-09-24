@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     # --- LettaLocal ---
     LETTA_URL: str = "http://localhost:8283"
 
+    # Read timeout for backend->LettaLocal requests (seconds). 600s
+    # locally; slow-inference environments (CI CPU) set this higher —
+    # legitimate multi-tool turns can exceed 600s there (observed
+    # 2026-08-31: llm06 grind runs 503'd at 604s on CI while passing
+    # locally in <60s).
+    LETTA_READ_TIMEOUT_S: float = 600.0
+
     # --- Ollama ---
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "ollama/nemotron-3-nano:4b"

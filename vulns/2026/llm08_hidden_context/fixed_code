@@ -2,7 +2,8 @@
 #         + letta/security/block_guard.py
 #
 # This is the ACTUAL LettaLocal framework code that defends against
-# hidden context exposure. Four controls work together:
+# hidden context exposure. Three enforcement controls work together, plus
+# the canary wiring that arms them all:
 #
 # 0. Canary wiring — canary_value in fixed.yaml becomes a __canary__
 #    READ-ONLY memory block at agent creation (Epsilon passes it via
