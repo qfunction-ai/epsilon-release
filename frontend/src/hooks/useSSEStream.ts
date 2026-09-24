@@ -105,6 +105,17 @@ export function useSSEStream({
             const reason = typeof data.stop_reason === 'string' ? data.stop_reason : ''
             if (reason) onStopReason?.(reason)
             break
+          } else if (msgType === 'security_flag') {
+            // 0.16.32 security-flag propagation: out-of-band signal emitted
+            // at tool-return time when the injection scanner flags a tool
+            // output. Not message content — flows to the (previously dead)
+            // security-warning render chain via useChat's handler.
+            const flag = typeof data.flag === 'string' ? data.flag : 'unknown'
+            const tool = typeof data.tool_name === 'string' ? data.tool_name : 'unknown'
+            onSecurityEvent?.(
+              'security_flag',
+              `Content flagged: possible prompt injection (${flag}) - tool: ${tool}`,
+            )
           } else if (msgType === 'error_message') {
             onError(String(data.message || data.detail || 'Stream error'))
             break

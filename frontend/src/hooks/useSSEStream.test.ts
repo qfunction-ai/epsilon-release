@@ -144,6 +144,88 @@ describe('useSSEStream', () => {
     expect(onStopReason).toHaveBeenCalledWith('cancelled')
   })
 
+  it('calls onSecurityEvent on security_flag event (0.16.32 binding shape: message_type discriminator)', async () => {
+    const onSecurityEvent = vi.fn()
+    const mockParse = parseSSEStream as ReturnType<typeof vi.fn>
+    mockParse.mockReturnValue(
+      makeAsyncGenerator([
+        {
+          message_type: 'security_flag',
+          flag: 'instruction_override',
+          tool_name: 'archival_memory_search',
+          step_id: 'step-1',
+          run_id: 'run-1',
+        },
+      ])(),
+    )
+
+    const { result } = renderHook(() =>
+      useSSEStream({
+        onContent: vi.fn(),
+        onError: vi.fn(),
+        onSecurityEvent,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.startStream(makeMockResponse())
+    })
+
+    // Exact literal + softer wording pinned (Ryan decision 2026-09-24):
+    // the dispatch must key on message_type === 'security_flag' and format
+    // as a scanner finding, not an accusation against the answer.
+    expect(onSecurityEvent).toHaveBeenCalledTimes(1)
+    expect(onSecurityEvent).toHaveBeenCalledWith(
+      'security_flag',
+      'Content flagged: possible prompt injection (instruction_override) - tool: archival_memory_search',
+    )
+  })
+
+  it('does not fire onSecurityEvent when the event uses "type" instead of "message_type" (Addendum A silent-drop regression)', async () => {
+    const onSecurityEvent = vi.fn()
+    const mockParse = parseSSEStream as ReturnType<typeof vi.fn>
+    mockParse.mockReturnValue(
+      makeAsyncGenerator([
+        // Wrong discriminator shape — must fall through to the ignore path
+        { type: 'security_flag', flag: 'instruction_override' },
+      ])(),
+    )
+
+    const { result } = renderHook(() =>
+      useSSEStream({
+        onContent: vi.fn(),
+        onError: vi.fn(),
+        onSecurityEvent,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.startStream(makeMockResponse())
+    })
+
+    expect(onSecurityEvent).not.toHaveBeenCalled()
+  })
+
+  it('does not fire onSecurityEvent when handler is absent (optional-chain guard)', async () => {
+    const mockParse = parseSSEStream as ReturnType<typeof vi.fn>
+    mockParse.mockReturnValue(
+      makeAsyncGenerator([
+        { message_type: 'security_flag', flag: 'instruction_override', tool_name: 'file_read' },
+      ])(),
+    )
+
+    const { result } = renderHook(() =>
+      useSSEStream({ onContent: vi.fn(), onError: vi.fn() }),
+    )
+
+    await act(async () => {
+      await result.current.startStream(makeMockResponse())
+    })
+
+    // Stream must complete without throwing when no security handler is wired
+    expect(result.current.streaming).toBe(false)
+  })
+
   it('calls onCompleted after stream ends', async () => {
     const onCompleted = vi.fn()
     const mockParse = parseSSEStream as ReturnType<typeof vi.fn>
