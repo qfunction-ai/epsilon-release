@@ -88,7 +88,7 @@ defense_refs:
       - number: 3
         title: "Strategy #3: Filter at every modality boundary (text, image, audio, structured data), not just text"
         description: "Run modality-specific classifiers, OCR over images, and transcription over audio, then apply text filters to the extracted content. Semantic filters are evadable by rephrasing or encoding, and low-resource and code-mixed inputs degrade their accuracy (Hac kett et al., 2025)."
-    implementation: "ContentValidator in content_validator.py scans tool arguments and RAG inserts for 6 pattern categories: instruction overrides, role redefinition, role-play markers, hidden Unicode, and base64-encoded payloads."
+    implementation: "ContentValidator in content_validator.py pattern-matches 6 injection categories: instruction overrides, role redefinition, role-play markers, delimiter spoofing, hidden Unicode, and base64-encoded payloads. Where it actually runs in THIS fixed state: on tool OUTPUTS (including archival_memory_search results), via tool_output_validator — a detected pattern appends a [SECURITY WARNING] to the tool return (detection, not blocking; the content still enters context). It also underpins the contains_injection policy operator for tool ARGUMENTS, but this config's policy uses no such rule. What deliberately does NOT scan: user messages — deterministic mediation lives at the tool boundary (the framework never gates the chat channel; filtering user input is OWASP Strategy #4's policy-engine job, not a content scanner's). Since v0.16.32, a detected pattern also surfaces a security flag to the user mid-stream."
     code_snippet: |
       # from content_validator.py — detect hidden Unicode injection
       _ZERO_WIDTH = re.compile(r"[\u200b\u200c\u200d\ufeff\u2060]")

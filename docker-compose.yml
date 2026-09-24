@@ -97,10 +97,14 @@ services:
   # - v0.16.30: Landlock sandbox three-layer fix (logging handler crash,
   #   staging dir consumption, allowed_read_paths) — file tools ran
   #   silently UNSANDBOXED before this on Docker Desktop < 29.7.2
+  # - v0.16.32: security-flag propagation (injection-detection flags to
+  #   SSE security_flag events + assistant-message metadata + run
+  #   metadata; 0.16.31 was the LETTA_CANARY_ENABLED opt-out, bundled in
+  #   this pin)
   # Non-streaming /agent/run is unaffected by the streaming bug class —
   # always verify /agent/stream directly after any version change.
   letta-local:
-    image: ghcr.io/qfunction-ai/letta-local:0.16.30
+    image: ghcr.io/qfunction-ai/letta-local:0.16.32
     user: "1000:1000"
     ports:
       - "127.0.0.1:8283:8283"
