@@ -97,7 +97,7 @@ defense_refs:
       - number: 3
         title: "Strategy #3: Enforce Authorization and Access Control Independently from the LLM"
         description: "Critical controls such as privilege separation, authorization bounds checks, and similar must not be delegated to the LLM, whether through the system prompt or another mechanism. These controls should be enforced in a deterministic and auditable manner, wh ich LLMs are not well suited to provide. Where tasks require different levels of access, separate them by authorization context and grant each only the privileges it requires. Page 49 genai.owasp.org"
-    implementation: "BlockGuard in block_guard.py prevents modification or deletion of read-only memory blocks. The canary block is read_only=True — the agent cannot remove or overwrite the canary token via core_memory_replace."
+    implementation: "BlockGuard in block_guard.py prevents modification or deletion of read-only memory blocks. The canary block is created read_only=True (letta_client passes the flag in the __canary__ memory-block payload; the Block schema would default to writable) — the agent cannot remove or overwrite the canary token via core_memory_replace. History note (claim audit F1, 2026-09-24): the block was previously created WITHOUT the flag, making this layer silently inert on every agent — verified live (read_only=False) and fixed in the same audit cycle."
     code_snippet: |
       # from block_guard.py — prevent read-only block modification
       if block.read_only:

@@ -1,13 +1,18 @@
 # SOURCE: letta/security/policy.py (trimmed to relevant sections)
 #
 # This is the ACTUAL LettaLocal framework code that prevents unbounded
-# resource consumption. Three controls work together:
+# resource consumption. Four controls work together:
 #
 # 1. Rate limits — per-tool and global caps on tool calls
 # 2. Loop detection — detects repeated identical tool calls in a sliding window
 # 3. Default deny — fallback that blocks anything not explicitly allowed
+# 4. Token budget — per-run and per-step token ceilings that STOP THE RUN
+#    (max_tokens_exceeded) once cumulative usage crosses the cap; configured
+#    via agent metadata (token_budget_run/step in fixed.yaml), enforced in
+#    the v3 agent path after each LLM call (see the Defense tab's TokenBudget
+#    entry for the calibration)
 #
-# All three are configured via the policy section of fixed.yaml.
+# Controls 1-3 are configured via the policy section of fixed.yaml.
 
 import hashlib
 import json

@@ -1,15 +1,26 @@
 # LLM05: Data and Model Poisoning — Fixed Configuration
-# Content validation blocks poisoned documents at ingest time.
-# Source access control restricts which documents an agent can retrieve.
-# Canary detects exfiltration attempts triggered by poisoned instructions.
-# Tool output validation scans retrieved content before re-entering LLM context.
+# The ingest defense: archival_memory_insert (the poisoning vector) is
+# denied outright by the policy — no new documents can enter the corpus at
+# runtime. Corpus curation is the other half: the documents list below is
+# the curated store (both clean and poisoned docs load in both states —
+# that is deliberate; detection is the lesson).
+# The retrieval defense: tool output validation scans retrieval results for
+# injection patterns and appends [SECURITY WARNING] (detection, not removal
+# — the content still enters context); since LettaLocal 0.16.32 the same
+# detection surfaces a security flag to the user mid-stream.
+# The soft layer: the persona SECURITY RULE tells the agent to distrust
+# flagged content — best-effort on this 4B (observed following the poison
+# even with the warning present), which is the honest blast-radius lesson.
 
-# OWASP Strategy #2: Strict validation for all incoming data — ContentValidator
-# scans every document for injection patterns before archival_memory_insert.
+# OWASP Strategy #2: Strict validation of retrieved content — ContentValidator
+# (via tool_output_validator) scans tool outputs; nothing scans inserts
+# (inserts are policy-denied instead — a different, stronger mechanism).
 # OWASP Strategy #3: Protect RAG systems — trust boundaries, filter retrieved
 # content, isolate system instructions from external data.
-# OWASP Strategy #7: Enforce least-privilege access, strict data access controls —
-# SourceAccessControl ensures only authorized documents are retrievable.
+# OWASP Strategy #7: Enforce least-privilege access, strict data access
+# controls — the corpus interface is read-allowed/write-denied (insert tool
+# denied; retrieval allowed); there is no per-document runtime access
+# control in this app (single curated corpus).
 # OWASP Strategy #11: Grounding techniques with validation layers —
 # ToolOutputValidator scans tool results for injection before re-entering context.
 

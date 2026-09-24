@@ -14,9 +14,12 @@ system_prompt: |
 # No canary token — the agent cannot detect system prompt exfiltration.
 canary: false
 
-# No content validation — tool outputs and RAG content are never
-# scanned for secrets or PII. Credentials returned by file_read
-# will be passed directly to the LLM and may appear in responses.
+# No content validation — tool outputs are not scanned for injection
+# patterns. Note the split: the framework's default secret-detector still
+# AUDIT-logs secrets in tool arguments on every agent regardless of this
+# flag (logs, does not block); what this state lacks is injection
+# validation of outputs and any blocking control. Credentials returned by
+# file_read pass directly to the LLM and may appear in responses.
 content_validation: false
 
 # All tools exposed with no restrictions. An attacker can:

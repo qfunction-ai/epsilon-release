@@ -2,7 +2,11 @@
 #
 # When a student selects "Vulnerable" for LLM09, poisoned embeddings can
 # inject content into the context window via archival memory search.
-# There is no source access control and no retrieval audit logging.
+# There is no source access control and nothing flags the blocker document:
+# it sits in the store indistinguishable from legitimate content. (Retrieval
+# audit logging DOES run in this state — the framework's ToolCallRecorder
+# records every search on every agent; what is missing is corpus curation,
+# which is the fixed state's lesson.)
 
 @staticmethod
 def _vuln_config_to_agent_config(

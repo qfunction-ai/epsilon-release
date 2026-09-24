@@ -16,8 +16,10 @@ system_prompt: |
 # Canary token detects system prompt exfiltration.
 canary: true
 canary_value: CANARY-eps-02-sid-2026
-# Content validation scans tool outputs for secrets
-# and PII before they reach the LLM context window.
+# Content validation scans tool outputs for injection patterns before
+# they reach the LLM context window. Secret detection is a separate
+# mechanism: the default contains_secret rule audit-logs secrets in tool
+# ARGUMENTS (detection, not blocking) on every agent.
 content_validation: true
 
 tools:

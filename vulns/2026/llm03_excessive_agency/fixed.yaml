@@ -46,12 +46,15 @@ policy:
         value: "(^/etc/|^/root/|^/var/|\\.\\./)"
       action: deny
       priority: 100
-  # Strategy #8: Budget agent capabilities — deny by default.
+  # Strategy #9: Rate limiting — per-tool call caps.
   max_calls_per_tool:
     file_read: 20
     archival_memory_search: 50
   defaults:
-    # Strategy #8: Only explicitly allowed tools can execute.
+    # Strategy #7 (complete mediation): deny by default — only explicitly
+    # allowed tools can execute. (The old '#8 Budget agent capabilities'
+    # citation was LLM01's #8; LLM03's #8 is 'Monitor tool use' — claim
+    # audit F8.)
     action: deny
     max_tool_calls: 100
 # Strategy #2: Use deterministic methods for behavior control.
