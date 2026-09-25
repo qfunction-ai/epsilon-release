@@ -141,14 +141,20 @@ export interface SecurityEvent {
   timestamp: string
   /** Type of the event (e.g. 'tool_denied', 'canary_detected'). */
   event_type: string
-  /** Name of the tool involved, if applicable. */
+  /** Name of the tool involved ('' for events without one, e.g. message_sent). */
   tool_name: string
   /** Human-readable reason for the event. */
   reason: string
+  /** Detection class label (e.g. 'instruction_override') — the same field the chat badge shows. */
+  label?: string
+  /** The run the event belongs to (joins badge events to runs). */
+  run_id?: string | null
+  /** The step within the run. */
+  step_id?: string | null
+  /** The agent that produced the event. */
+  agent_id?: string | null
   /** Optional vulnerability ID associated with the event. */
-  vuln_id?: string
-  /** Optional agent ID associated with the event. */
-  agent_id?: string
+  vuln_id?: string | null
 }
 
 /** Observability overview data for the dashboard. */
@@ -185,6 +191,31 @@ export interface ObservabilityData {
   }
   /** Optional tool call distribution by tool name. */
   tool_distribution?: Record<string, number>
+}
+
+/** A tool-call record from the observability store. */
+export interface ToolCallRecord {
+  id: string
+  step_id: string
+  agent_id?: string | null
+  tool_name: string
+  tool_args?: Record<string, unknown> | null
+  tool_result?: string | null
+  duration_ms?: number | null
+  success: boolean
+  error?: string | null
+  created_at?: string | null
+}
+
+/** A run record with Epsilon's vuln join. */
+export interface RunRecord {
+  id: string
+  agent_id?: string | null
+  status?: string
+  stop_reason?: string | null
+  metadata?: Record<string, unknown> | null
+  vuln_id?: string | null
+  created_at?: string | null
 }
 
 /** The code state for a vulnerability — vulnerable or fixed. */
