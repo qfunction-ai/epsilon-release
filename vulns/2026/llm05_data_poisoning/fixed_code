@@ -62,6 +62,11 @@ async def validate_tool_output(tool_name, tool_result, agent):
 #   - An INJECTION_DETECTED event is logged to the audit trail
 #   - A warning is appended to the tool result so the LLM knows the content
 #     may be adversarial
+#   - (v0.16.32+) The detection label also propagates to the USER: a live
+#     badge in the chat turn, and security_flags in the run's metadata
+#     (durable — visible in the Observability page even after reload)
+#   - (v0.16.33+) The audit event carries run_id/step_id explicitly, so
+#     the Security Events page can link the detection to its run
 #
 #   This is the same ContentValidator used for tool arguments (see LLM01's
 #   fixed_code). The scanner covers 6 pattern categories:
