@@ -101,10 +101,13 @@ services:
   #   SSE security_flag events + assistant-message metadata + run
   #   metadata; 0.16.31 was the LETTA_CANARY_ENABLED opt-out, bundled in
   #   this pin)
+  # - v0.16.33: streaming run-flag gap fix (StreamingService merge at all
+  #   finalization sites), injection events carry explicit run_id (dead-attr
+  #   pattern deleted), canary read_only upgrade at load time (both paths)
   # Non-streaming /agent/run is unaffected by the streaming bug class —
   # always verify /agent/stream directly after any version change.
   letta-local:
-    image: ghcr.io/qfunction-ai/letta-local:0.16.32
+    image: ghcr.io/qfunction-ai/letta-local:0.16.33
     user: "1000:1000"
     ports:
       - "127.0.0.1:8283:8283"
