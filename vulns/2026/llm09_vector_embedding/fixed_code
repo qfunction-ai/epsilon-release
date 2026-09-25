@@ -51,9 +51,7 @@ def _parse_retrieval_results(tool_result):
 
 
 # === PART 2: Tool output validation ===
-# SOURCE: letta/security/tool_output_validator.py (as of LettaLocal 0.16.33:
-# explicit step_id/run_id, tuple return — the dead _current_* attribute
-# pattern was deleted in 0.16.33)
+# SOURCE: letta/security/tool_output_validator.py (as of LettaLocal 0.16.33; explicit step_id/run_id — the dead _current_* pattern was deleted in 0.16.33)
 
 async def validate_tool_output(
     tool_name: str,
@@ -109,6 +107,7 @@ async def validate_tool_output(
     except Exception as e:
         logger.warning(f"Tool output validation failed (fail-open): {e}")
         return None, None
+
 
 
 # DEFENSE SUMMARY:
