@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useSecurityEvents } from '../hooks/useSecurityEvents';
-import type { SecurityEventType } from '../types';
+import type { SecurityEvent, SecurityEventType } from '../types';
 
 // Map event types to dot colors
 const EVENT_DOT_CLASS: Record<string, string> = {
@@ -22,6 +23,7 @@ const FILTERS: { label: string; value: SecurityEventType | null }[] = [
 
 export function SecurityEvents() {
   const { events, isLoading, error, filter, setFilter } = useSecurityEvents();
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
     <>
@@ -73,31 +75,21 @@ export function SecurityEvents() {
               <tr>
                 <th>Time</th>
                 <th>Event Type</th>
+                <th>Label</th>
                 <th>Tool</th>
                 <th>Reason</th>
                 <th>Vuln</th>
+                <th />
               </tr>
             </thead>
             <tbody>
               {events.map((event) => (
-                <tr key={event.id}>
-                  <td>{formatTime(event.timestamp)}</td>
-                  <td>
-                    <span className="event-type">
-                      <span className={`event-dot ${EVENT_DOT_CLASS[event.event_type] || 'info'}`} />
-                      {event.event_type}
-                    </span>
-                  </td>
-                  <td>{event.tool_name}</td>
-                  <td>{event.reason}</td>
-                  <td>
-                    {event.vuln_id ? (
-                      <span className="badge badge-danger">{event.vuln_id}</span>
-                    ) : (
-                      <span className="badge badge-muted">—</span>
-                    )}
-                  </td>
-                </tr>
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  expanded={expanded === event.id}
+                  onToggle={() => setExpanded(expanded === event.id ? null : event.id)}
+                />
               ))}
             </tbody>
           </table>
@@ -105,6 +97,82 @@ export function SecurityEvents() {
       </div>
     </>
   );
+}
+
+function EventRow({
+  event,
+  expanded,
+  onToggle,
+}: {
+  event: SecurityEvent;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const isChatTurn = event.event_type === 'message_sent';
+  return (
+    <>
+      <tr style={isChatTurn ? { opacity: 0.55 } : undefined}>
+        <td>{formatTime(event.timestamp)}</td>
+        <td>
+          <span className="event-type">
+            <span className={`event-dot ${EVENT_DOT_CLASS[event.event_type] || 'info'}`} />
+            {event.event_type}
+            {isChatTurn && (
+              <span style={{ marginLeft: '0.35rem', fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>
+                (chat turn)
+              </span>
+            )}
+          </span>
+        </td>
+        <td>
+          {event.label ? (
+            <span className="badge badge-warning">{event.label}</span>
+          ) : (
+            <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+          )}
+        </td>
+        <td>{event.tool_name || '—'}</td>
+        <td className="reason-cell">{event.reason || '—'}</td>
+        <td>
+          {event.vuln_id ? (
+            <span className="badge badge-danger">{event.vuln_id}</span>
+          ) : (
+            <span className="badge badge-muted">—</span>
+          )}
+        </td>
+        <td>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}
+            onClick={onToggle}
+            aria-expanded={expanded}
+          >
+            {expanded ? '−' : '+'}
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={7} style={{ background: 'var(--bg-secondary, rgba(127,127,127,0.06))' }}>
+            <div style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '0.7rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              {formatDetail(event)}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function formatDetail(event: SecurityEvent): string {
+  const lines = [
+    `id:       ${event.id}`,
+    `run_id:   ${event.run_id ?? '(none)'}`,
+    `step_id:  ${event.step_id ?? '(none)'}`,
+    `agent_id: ${event.agent_id ?? '(unattributed)'}`,
+    `raw timestamp: ${event.timestamp}`,
+  ];
+  return lines.join('\n');
 }
 
 function formatTime(timestamp: string): string {

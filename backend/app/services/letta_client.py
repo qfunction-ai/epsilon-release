@@ -734,6 +734,50 @@ class LettaClient:
     # Security & observability proxies
     # ------------------------------------------------------------------
 
+    async def list_tool_calls(
+        self,
+        agent_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Proxy to LettaLocal GET /v1/observability/tool-calls.
+
+        Returns per-call records (tool_name, duration_ms, success,
+        error, tool_args, truncated result, timestamps). Ordered
+        newest-first by the fork. Row-scoping to the caller's agents
+        is the Epsilon backend's job (same pattern as events).
+        """
+        params: dict[str, Any] = {"limit": limit}
+        if agent_id is not None:
+            params["agent_id"] = agent_id
+        try:
+            resp = await self._client.get("/v1/observability/tool-calls", params=params)
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            self._handle_error(exc, "list_tool_calls")
+            raise
+        data = resp.json()
+        return data.get("tool_calls", []) if isinstance(data, dict) else []
+
+    async def list_runs(
+        self,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Proxy to LettaLocal GET /v1/runs.
+
+        Returns run records newest-first: status, stop_reason, metadata
+        (which carries security_flags since 0.16.32), timestamps. No
+        agent filter param exists on the list endpoint; scoping to the
+        caller's agents happens Epsilon-side by filtering agent_id.
+        """
+        try:
+            resp = await self._client.get("/v1/runs", params={"limit": limit})
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            self._handle_error(exc, "list_runs")
+            raise
+        data = resp.json()
+        return data if isinstance(data, list) else []
+
     async def get_security_events(
         self,
         agent_id: str | None = None,

@@ -46,6 +46,9 @@ class StubLettaClient:
         self._next = 0
         # Canned security events (settable per-test for scoping tests).
         self.security_events: list = [{"event_type": "tool_denied", "agent_id": None}]
+        # Canned observability row data (task #2 tests).
+        self.tool_calls: list = []
+        self.runs: list = []
         # Artificial run latency (seconds) for concurrency-guard tests —
         # models the single inference slot being occupied.
         self.run_delay: float = 0.0
@@ -94,6 +97,16 @@ class StubLettaClient:
     async def get_observability(self, **kw) -> dict:
         self.calls.append(("get_observability", kw))
         return {"runs": 1, "tokens": 10}
+
+    # Row observability (task #2): canned per-call records and runs,
+    # settable per-test like security_events.
+    async def list_tool_calls(self, **kw) -> list:
+        self.calls.append(("list_tool_calls", kw))
+        return self.tool_calls
+
+    async def list_runs(self, **kw) -> list:
+        self.calls.append(("list_runs", kw))
+        return self.runs
 
     async def ensure_tools_registered(self) -> None:
         pass
