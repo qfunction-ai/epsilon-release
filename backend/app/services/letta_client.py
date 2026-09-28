@@ -259,6 +259,12 @@ class LettaClient:
                 "Execute Python code locally. Vulnerable version: no input validation, no import restrictions.",
                 ["epsilon", "code-execution", "vulnerable"],
             ),
+            (
+                "send_email",
+                tools_dir / "send_email.py",
+                "Send a file as an email attachment. Simulated: no mail is sent.",
+                ["epsilon", "exfil", "simulated"],
+            ),
         ]
 
         for name, source_path, description, tags in custom_tools:
