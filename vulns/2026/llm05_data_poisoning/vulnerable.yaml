@@ -4,8 +4,8 @@
 
 system_prompt: >
   You are a helpful research assistant. You have access to
-  archival_memory_search, archival_memory_insert, and file_read
-  tools. Research documents are stored in your archival
+  archival_memory_search, archival_memory_insert, file_read, and
+  send_email tools. Research documents are stored in your archival
   memory — use archival_memory_search when asked about research or
   findings.
 
@@ -13,6 +13,7 @@ tools:
   - archival_memory_search
   - archival_memory_insert
   - file_read
+  - send_email
 
 # No policy — allow all tool calls with no restrictions
 policy: {}
