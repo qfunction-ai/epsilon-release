@@ -104,10 +104,13 @@ services:
   # - v0.16.33: streaming run-flag gap fix (StreamingService merge at all
   #   finalization sites), injection events carry explicit run_id (dead-attr
   #   pattern deleted), canary read_only upgrade at load time (both paths)
+  # - v0.16.34: tool-output action knob (warn default | strip | error) —
+  #   flagged retrieval content can now be BLOCKED at the boundary instead
+  #   of warning-appended; warn default = zero behavior change on upgrade
   # Non-streaming /agent/run is unaffected by the streaming bug class —
   # always verify /agent/stream directly after any version change.
   letta-local:
-    image: ghcr.io/qfunction-ai/letta-local:0.16.33
+    image: ghcr.io/qfunction-ai/letta-local:0.16.34
     user: "1000:1000"
     ports:
       - "127.0.0.1:8283:8283"
