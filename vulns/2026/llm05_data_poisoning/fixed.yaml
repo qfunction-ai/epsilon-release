@@ -4,13 +4,16 @@
 # runtime. Corpus curation is the other half: the documents list below is
 # the curated store (both clean and poisoned docs load in both states —
 # that is deliberate; detection is the lesson).
-# The retrieval defense: tool output validation scans retrieval results for
-# injection patterns and appends [SECURITY WARNING] (detection, not removal
-# — the content still enters context); since LettaLocal 0.16.32 the same
-# detection surfaces a security flag to the user mid-stream.
-# The soft layer: the persona SECURITY RULE tells the agent to distrust
-# flagged content — best-effort on this 4B (observed following the poison
-# even with the warning present), which is the honest blast-radius lesson.
+# The retrieval defense (v0.16.34 QUARANTINE): tool output validation
+# scans retrieval results for injection patterns — and the error action
+# BLOCKS the flagged content: the tool return becomes an error naming the
+# detection, the poison NEVER enters the model's context, and the model
+# reports the block to the user. (Prior posture, warn-append, retired:
+# the content entered context flagged and the persona was asked to
+# distrust it — live testing showed the model quoting the warning, then
+# obeying the poison anyway; see the Observe step.)
+# The soft layer: the persona SECURITY RULE stays as defense in depth —
+# it guards only the novel-phrasing residual the scanner cannot catch.
 
 # OWASP Strategy #2: Strict validation of retrieved content — ContentValidator
 # (via tool_output_validator) scans tool outputs; nothing scans inserts

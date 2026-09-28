@@ -1,4 +1,4 @@
-# SOURCE: letta/security/tool_output_validator.py (as of LettaLocal 0.16.33)
+# SOURCE: letta/security/tool_output_validator.py (as of LettaLocal 0.16.34)
 #
 # This is the ACTUAL LettaLocal framework code that scans tool outputs
 # for prompt injection before they re-enter the LLM context window.
@@ -6,10 +6,16 @@
 # When a tool (file_read, archival_memory_search) returns content, that
 # content re-enters the LLM context with no validation by default. A
 # poisoned web page or document can inject instructions through tool
-# output. This module flags that.
+# output. This module detects that — and v0.16.34 adds the ACTION knob:
+# warn (default; append [SECURITY WARNING], content passes), strip
+# (replace with a generic stub), or error (return an error-status result
+# naming the detection; the content never enters context — the mode
+# LLM05's fixed state uses).
 #
 # Enabled by: agent.tool_output_validation_enabled (default False)
 #            Set via content_validation: true in fixed.yaml
+# Action: agent.tool_output_action (metadata; default warn)
+#            Set via tool_output_action: "error" in fixed.yaml
 # Called by: letta_agent_v3.py after each tool execution
 # Fail-open: if the validator crashes, the tool result passes through unchanged
 # v0.16.32: returns (warning, label) — the label feeds the security-flag
@@ -17,6 +23,16 @@
 # v0.16.33: step_id/run_id passed EXPLICITLY from the call site (the
 #           old _current_* attribute reads were never set anywhere —
 #           injection events carried run_id None on every path)
+# v0.16.34: QUARANTINE_STUB / QUARANTINE_ERROR constants — the texts the
+#           strip/error actions substitute at the boundary
+
+QUARANTINE_STUB = "[Tool output withheld by security policy.]"
+
+QUARANTINE_ERROR = (
+    "Tool call blocked by security policy: potential prompt injection "
+    "detected in tool output ({label}). Content not delivered."
+)
+
 
 async def validate_tool_output(
     tool_name: str,
@@ -77,11 +93,14 @@ async def validate_tool_output(
 # DEFENSE SUMMARY:
 #   When content_validation: true is set in fixed.yaml:
 #   - Every tool output is scanned by ContentValidator before re-entering context
-#   - Poisoned web pages, malicious file contents, and tainted RAG results
-#     are detected before the LLM processes them
 #   - An INJECTION_DETECTED event is logged to the audit trail
-#   - A warning is appended to the tool result so the LLM knows the content
-#     may be adversarial
+#   - The ACTION (v0.16.34, agent.tool_output_action) decides what happens
+#     to flagged content: warn appends [SECURITY WARNING] and passes it;
+#     strip replaces it with a generic stub; error returns an error-status
+#     result naming the detection — the content never enters context.
+#     LLM05's fixed state uses error (see fixed.yaml).
+#   - The security flags (badge, events, run metadata) fire under every
+#     action — visibility is action-independent
 #
 #   This is the same ContentValidator used for tool arguments (see LLM01's
 #   fixed_code). The scanner covers 6 pattern categories:

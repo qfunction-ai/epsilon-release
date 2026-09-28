@@ -41,6 +41,10 @@ def _vuln_config_to_agent_config(
         model=settings.OLLAMA_MODEL,
         embedding=settings.LETTA_EMBEDDING_MODEL,
         model_settings=model_settings,
+
+        # (v0.16.34/35 fields exist in the real function — tool_output_action,
+        # reasoning_watchdog — but are absent here: the vulnerable state sets
+        # neither, so both default to warn/off in the framework.)
     )
 
 # VULNERABILITY SUMMARY:
