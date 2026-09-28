@@ -203,4 +203,5 @@ class AgentManager:
             # LLM06 token budget: raw dict from the YAML flows into the
             # typed config here (pydantic coerces {run, step, context_ratio}).
             token_budget=vuln_config.token_budget,
+            tool_output_action=vuln_config.tool_output_action,
         )

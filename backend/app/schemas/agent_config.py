@@ -117,6 +117,12 @@ class AgentConfig(BaseModel):
         default=False,
         description="Whether content validation is enabled for agent outputs.",
     )
+    tool_output_action: str | None = Field(
+        default=None,
+        description="v0.16.34 tool-output action (LLM05 quarantine): None/'warn' appends "
+        "the [SECURITY WARNING]; 'strip' replaces flagged output with a stub; "
+        "'error' returns an error-status result naming the detection. None = warn.",
+    )
     documents: list[str] = Field(
         default_factory=list,
         description="List of document identifiers or paths attached to the agent.",
