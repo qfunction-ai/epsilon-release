@@ -190,6 +190,10 @@ class LettaClient:
         # metadata merge (the Delta-review merge trap, by name, above).
         if config.tool_output_action and config.tool_output_action != "warn":
             metadata["tool_output_action"] = config.tool_output_action
+        # v0.16.35 reasoning watchdog (metadata reasoning_watchdog='on'):
+        # kills degenerate reasoning generations mid-stream (the grind class).
+        if config.reasoning_watchdog:
+            metadata["reasoning_watchdog"] = "on"
         if metadata:
             payload["metadata"] = metadata
 

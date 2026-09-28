@@ -21,6 +21,9 @@ policy: {}
 canary: false
 content_validation: false
 
+# v0.16.35: reasoning watchdog ON — the vulnerable grind (pre-send_email)
+# wedged INSIDE reasoning; this bounds that class even in the no-controls state.
+reasoning_watchdog: true
 documents:
   - documents/clean_research.txt
   - documents/poisoned_research.txt

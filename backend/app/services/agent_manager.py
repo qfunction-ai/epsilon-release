@@ -204,4 +204,5 @@ class AgentManager:
             # typed config here (pydantic coerces {run, step, context_ratio}).
             token_budget=vuln_config.token_budget,
             tool_output_action=vuln_config.tool_output_action,
+            reasoning_watchdog=vuln_config.reasoning_watchdog,
         )

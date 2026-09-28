@@ -92,6 +92,10 @@ content_validation: true
 # stays as defense in depth — it guards the novel-phrasing residual the
 # scanner cannot catch.
 tool_output_action: "error"
+# v0.16.35: reasoning watchdog ON — degenerate generations (token-collapse)
+# killed mid-stream; step completes with what streamed. The bound for the
+# grind class observed in both states.
+reasoning_watchdog: true
 
 documents:
   - documents/clean_research.txt

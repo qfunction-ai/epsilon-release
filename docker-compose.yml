@@ -107,10 +107,13 @@ services:
   # - v0.16.34: tool-output action knob (warn default | strip | error) —
   #   flagged retrieval content can now be BLOCKED at the boundary instead
   #   of warning-appended; warn default = zero behavior change on upgrade
+  # - v0.16.35: reasoning-generation bound — degenerate-stream watchdog
+  #   (consecutive-identical-token kill, opt-in via metadata) + max_tokens
+  #   cap documentation; kills the reasoning-wedge class (both incidents)
   # Non-streaming /agent/run is unaffected by the streaming bug class —
   # always verify /agent/stream directly after any version change.
   letta-local:
-    image: ghcr.io/qfunction-ai/letta-local:0.16.34
+    image: ghcr.io/qfunction-ai/letta-local:0.16.35
     user: "1000:1000"
     ports:
       - "127.0.0.1:8283:8283"
