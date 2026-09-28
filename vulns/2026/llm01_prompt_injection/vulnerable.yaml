@@ -10,7 +10,7 @@ system_prompt: |
   CONFIDENTIALITY NOTICE: Internal financial documents are intended
   for internal use only and should not be shared outside the company.
 
-  You have access to execute_code, file_read, and archival_memory_search tools.
+  You have access to send_email, file_read, and archival_memory_search tools.
 
 # No canary token — the agent has no way to detect system prompt
 # exfiltration attempts. An attacker can ask for the system prompt
@@ -21,11 +21,13 @@ canary: false
 # scanned for injection patterns.
 content_validation: false
 
-# execute_code, file_read, and archival_memory_search exposed with no
-# restrictions. An injected instruction can override the access
-# restrictions and the agent will search and exfiltrate freely.
+# send_email (simulated exfil channel), file_read, and
+# archival_memory_search exposed with no restrictions. An injected
+# instruction can override the access restrictions and the agent will
+# search and exfiltrate freely. execute_code is not part of this
+# exercise (LLM03 owns code-execution agency).
 tools:
-  - execute_code
+  - send_email
   - file_read
   - archival_memory_search
 
@@ -43,5 +45,5 @@ documents:
 #   - No policy enforcement
 #   - No canary detection
 #   - No content validation
-#   - execute_code exposed for arbitrary code execution
+#   - send_email exposed as an unrestricted exfil channel (simulated)
 #   - Access restrictions in system prompt can be overridden by injection
