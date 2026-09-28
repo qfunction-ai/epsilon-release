@@ -219,6 +219,10 @@ class VulnLoader:
             # class from the canary saga). Flows to agent metadata in
             # letta_client._build_agent_payload.
             token_budget=data.get("token_budget"),
+            # v0.16.34 tool-output action (LLM05 quarantine) — same
+            # whitelist class: without this line the yaml knob is
+            # silently dropped (found live in the gauntlet).
+            tool_output_action=data.get("tool_output_action"),
         )
 
     def _load_code_comparison(self, vuln_dir: Path) -> CodeComparison | None:

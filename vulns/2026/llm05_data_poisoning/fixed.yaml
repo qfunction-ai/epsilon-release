@@ -80,6 +80,13 @@ policy:
 canary: true
 canary_value: CANARY-eps-05-pois-2026
 content_validation: true
+# v0.16.34 quarantine (error action): flagged retrieval content NEVER
+# enters the model's context. The scanner fires, the tool return becomes
+# an error naming the detection, and the model reports the block to the
+# user instead of following the poison. The persona SECURITY RULE below
+# stays as defense in depth — it guards the novel-phrasing residual the
+# scanner cannot catch.
+tool_output_action: "error"
 
 documents:
   - documents/clean_research.txt

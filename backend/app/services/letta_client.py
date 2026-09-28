@@ -184,6 +184,12 @@ class LettaClient:
                 metadata["token_budget_step"] = tb.step
             if tb.context_ratio is not None:
                 metadata["token_budget_context_ratio"] = tb.context_ratio
+        # v0.16.34 tool-output action (LLM05 quarantine): None = warn
+        # (LettaLocal default — do not send). 'strip'/'error' act on flagged
+        # tool output at the boundary. Composed into the SAME single-dict
+        # metadata merge (the Delta-review merge trap, by name, above).
+        if config.tool_output_action and config.tool_output_action != "warn":
+            metadata["tool_output_action"] = config.tool_output_action
         if metadata:
             payload["metadata"] = metadata
 
