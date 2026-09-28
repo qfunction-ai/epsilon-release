@@ -123,6 +123,11 @@ class AgentConfig(BaseModel):
         "the [SECURITY WARNING]; 'strip' replaces flagged output with a stub; "
         "'error' returns an error-status result naming the detection. None = warn.",
     )
+    reasoning_watchdog: bool = Field(
+        default=False,
+        description="v0.16.35 reasoning watchdog (metadata reasoning_watchdog='on'): "
+        "terminates degenerate reasoning generations (token-collapse kill).",
+    )
     documents: list[str] = Field(
         default_factory=list,
         description="List of document identifiers or paths attached to the agent.",

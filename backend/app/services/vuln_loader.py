@@ -223,6 +223,7 @@ class VulnLoader:
             # whitelist class: without this line the yaml knob is
             # silently dropped (found live in the gauntlet).
             tool_output_action=data.get("tool_output_action"),
+            reasoning_watchdog=data.get("reasoning_watchdog", False),
         )
 
     def _load_code_comparison(self, vuln_dir: Path) -> CodeComparison | None:
