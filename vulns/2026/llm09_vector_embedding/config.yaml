@@ -65,7 +65,7 @@ defense_refs:
     owasp_strategies:
       - number: 6
         title: "Strategy #6: Monitoring, Logging, and Incident Response"
-        description: "Keep immutable logs of retrieval activity (tenant scope, query, returned IDs, similarity scores). Monitor for tenant-filter bypass attempts, cross-tenant retrieval anomalies, and abnormal embedding-API consumption. Update incident-response playbooks so \"em beddings only\" leaks are treated as source-data leaks for breach assessment and notification under GDPR Article 33 and analogous regimes."
+        description: "Keep immutable logs of retrieval activity (tenant scope, query, returned IDs, similarity scores). Monitor for tenant-filter bypass attempts, cross-tenant retrieval anomalies, and abnormal embedding-API consumption. Update incident-response playbooks so \"embeddings only\" leaks are treated as source-data leaks for breach assessment and notification under GDPR Article 33 and analogous regimes."
     implementation: "_parse_retrieval_results in tool_call_recorder.py extracts passage IDs and similarity scores (rrf_score, vector_rank, fts_rank) from archival_memory_search results and stores them in the audit record under _retrieval_results — retrieval-specific logging with similarity scores IS implemented (wired in letta_agent_v3.py). A document that consistently appears in retrieval results for queries where the user reports problems is a candidate blocker. Logs are DB rows, not immutable; no tenant scoping (single-tenant teaching app)."
     code_snippet: |
       # from tool_call_recorder.py — audit-log retrieval results

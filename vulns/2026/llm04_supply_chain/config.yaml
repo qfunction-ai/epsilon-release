@@ -56,7 +56,7 @@ defense_refs:
     owasp_strategies:
       - number: 2
         title: "Strategy #2: Apply OWASP Top Ten A06:2021 Vulnerable and Outdated Components mitigations"
-        description: "Apply the mitigations in the OWASP Top Ten's A06:2021 Vulnerable and Outdated Components : vulnerability scanning, management, and a patching policy that keeps the application on maintained versions of components, APIs, and underlying models. Apply the same controls to development environments with access to sensitive data, and verify that AI-suggested dependencies exist and are the intended package before adopting them."
+        description: "Apply the mitigations in the OWASP Top Ten's A06:2021 Vulnerable and Outdated Components: vulnerability scanning, management, and a patching policy that keeps the application on maintained versions of components, APIs, and underlying models. Apply the same controls to development environments with access to sensitive data, and verify that AI-suggested dependencies exist and are the intended package before adopting them."
       - number: 4
         title: "Strategy #4: Maintain an up-to-date, signed inventory of components using SBOMs, AIBOMs, and ML-SBOMs"
         description: "Maintain an up-to-date, signed inventory of components using a Software Bill of Materials (SBOM), extended to models, adapters, and datasets with AI BOMs (AIBOMs) and ML SBOMs, evaluating options such as the OWASP CycloneDX ML-BOM (OWASP CycloneDX , n.d.) and the OWASP AIBOM project (OWASP GenAI Security Project, 2025). Track licenses in the same inventory and audit it regularly for compliance and transparency."
