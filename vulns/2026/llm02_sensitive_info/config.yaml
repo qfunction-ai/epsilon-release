@@ -56,7 +56,7 @@ defense_refs:
       - number: 5
         title: "Tier 1, Strategy #5: Sanitize with classifiers, not regex alone"
         description: "pattern matching plus NER plus trained classifiers, because regex fails on encoded and cross-lingual output."
-    implementation: "SecretPatternChecker in secret_scanner.py detects secrets in tool arguments using entropy analysis (Shannon entropy >= 4.5 bits/char) and regex patterns for known formats (AWS keys, GitHub tokens, PEM private keys). PARTIAL EMBODIMENT of Tier 1 #5: entropy + regex only — the strategy's full form adds NER and trained classifiers, not implemented here."
+    implementation: "SecretPatternChecker in secret_scanner.py detects secrets in tool arguments using entropy analysis (Shannon entropy >= 4.5 bits/char) and regex patterns for known formats (AWS keys, GitHub tokens, PEM private keys). PARTIAL EMBODIMENT of Tier 1 #5: entropy + regex only — the strategy's full form adds NER and trained classifiers, not implemented here. ACTION note: the strategy's verb is SANITIZE; this control DETECTS and (via the default contains_secret rule) audit-LOGS — it does not block or sanitize. The audit-log-not-block posture is the framework default; strict deployments flip the rule to deny."
     code_snippet: |
       # from secret_scanner.py — entropy + regex secret detection
       for pattern, label in SECRET_PATTERNS:
