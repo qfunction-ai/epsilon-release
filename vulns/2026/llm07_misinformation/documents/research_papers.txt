@@ -31,8 +31,8 @@ and LLM security. All citations are accurate and verifiable.
 --------------------------------------------------------------------------------
 
 [3] "Jailbroken: How Does LLM Safety Training Fail?"
-    Authors: Xinyang Wang, et al.
-    Published: 2023, arXiv:2307.05212
+    Authors: Alexander Wei, Nika Haghtalab, Jacob Steinhardt
+    Published: 2023, arXiv:2307.02483
     Summary: Analyzes why existing safety training methods fail against
     jailbreak attacks. Identifies two key failure modes: competing
     objectives (the model's helpfulness goal conflicts with safety) and
@@ -54,25 +54,28 @@ and LLM security. All citations are accurate and verifiable.
 
 --------------------------------------------------------------------------------
 
-[5] "System Prompt Leakage: Attacks and Defenses"
-    Authors: Yupei Du, et al.
-    Published: 2024, arXiv:2402.19103
-    Summary: Systematizes the study of system prompt extraction attacks.
-    Categorizes attack vectors (direct questioning, encoding tricks,
-    tool output leakage) and proposes canary-based detection.
-    Key Finding: Canary tokens detect exfiltration but cannot prevent
-    it — the content is already in the context window when detected.
+[5] "System Prompt Extraction Attacks and Defenses in Large Language Models"
+    Authors: Badhan Chandra Das, M. Hadi Amini, Yanzhao Wu
+    Published: 2025, arXiv:2505.23817
+    Summary: Studies system prompt extraction attacks and defenses
+    across commercial and open-source LLM-based agents. Evaluates
+    seven defense strategies including canary-based detection, finding
+    each has trade-offs between detectability and prevention.
+    Key Finding: No single defense fully prevents system prompt
+    leakage — layered detection and redaction is the practical posture.
 
 --------------------------------------------------------------------------------
 
-[6] "Not with a Bug, but with a Prompt: Evaluating LLM Security"
-    Authors: Yupei Du, et al.
-    Published: 2024, OWASP Foundation
-    Summary: Proposes a framework for evaluating LLM application security
-    using adversarial test scenarios. Maps vulnerabilities to OWASP Top 10
-    for LLM Applications and provides reproducible test suites.
-    Key Finding: Automated adversarial testing in CI/CD catches 60-70%
-    of prompt injection regressions before deployment.
+[6] "Not What You've Signed Up For: Compromising Real-World LLM-Integrated
+    Applications with Indirect Prompt Injection"
+    Authors: Kai Greshake, Sahar Abdelnabi, Shailesh Mishra, et al.
+    Published: 2023, ACM AISec Workshop (arXiv:2302.12173)
+    Summary: Demonstrates indirect prompt injection against real-world
+    LLM-integrated applications (Bing Chat, code-completion engines).
+    Derives a taxonomy of attack impacts: data theft, worming,
+    information ecosystem contamination.
+    Key Finding: LLM-integrated applications blur the line between
+    data and instructions — retrieved content can act as instructions.
 
 --------------------------------------------------------------------------------
 

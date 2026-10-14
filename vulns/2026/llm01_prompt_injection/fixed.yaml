@@ -66,6 +66,11 @@ policy:
     action: deny
     max_tool_calls: 100
 
+# v0.16.35: reasoning watchdog ON — kills degenerate reasoning
+# generations (token-collapse) mid-stream; the step completes with
+# what streamed. An AVAILABILITY bound, not a security control (see
+# LLM06) — it changes nothing about what the model reads or answers.
+reasoning_watchdog: true
 documents:
   - internal_financials.txt
 

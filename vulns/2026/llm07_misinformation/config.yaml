@@ -27,6 +27,12 @@ why_it_matters: >-
   reliable runtime defense against hallucination. The best mitigation is
   grounding, verification, and human oversight. This vulnerability is
   demonstrated as an attack only — the defense is a research problem.
+  Availability note (observed live): the vulnerable state can still
+  DEGENERATE on conflicting fabricated content — a first-generation
+  reasoning loop with no tool activity. The reasoning watchdog (v0.16.35,
+  on for every agent in this app; see LLM06) bounds that AVAILABILITY
+  hazard while leaving the MISINFORMATION hazard fully live: the
+  nondeterminism that makes this exercise honest is untouched.
   Related risk (LLM04): attackers mine LLM output for hallucinated
   package names and register them in real registries
   ("slopsquatting"). Misinformation is not just wrong answers — it
