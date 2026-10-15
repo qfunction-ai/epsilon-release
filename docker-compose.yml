@@ -110,10 +110,13 @@ services:
   # - v0.16.35: reasoning-generation bound — degenerate-stream watchdog
   #   (consecutive-identical-token kill, opt-in via metadata) + max_tokens
   #   cap documentation; kills the reasoning-wedge class (both incidents)
+  # - v0.16.36: token cap actually reaches Ollama — legacy max_tokens wire
+  #   fix (mct was silently ignored) + slot-insurance default 16384 for
+  #   local providers; the ONLY bound on paragraph-cycling deliberation
   # Non-streaming /agent/run is unaffected by the streaming bug class —
   # always verify /agent/stream directly after any version change.
   letta-local:
-    image: ghcr.io/qfunction-ai/letta-local:0.16.35
+    image: ghcr.io/qfunction-ai/letta-local:0.16.36
     user: "1000:1000"
     ports:
       - "127.0.0.1:8283:8283"
