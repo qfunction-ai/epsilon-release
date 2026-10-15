@@ -74,5 +74,5 @@ content_validation: false
 reasoning_watchdog: true
 documents:
   - research_papers.txt
-  - fake_news.txt
-  - fabricated_extra.txt
+  - industry_briefs.txt
+  - clinical_legal_notes.txt
